@@ -21,7 +21,10 @@ include_directories(3rdparty/miniply)
 include_directories(3rdparty/happly)
 
 # tinyply
-include_directories(3rdparty/happly)
+include_directories(3rdparty/tinyply/source)
+
+# pieces
+include_directories(3rdparty/pieces)
 
 
 # 
@@ -39,8 +42,8 @@ add_executable(ply-parsing-perf
   3rdparty/happly/happly.h
 
   # tinyply source files
-  3rdparty/tinyply/tinyply.h
-  3rdparty/tinyply/tinyply.cpp
+  3rdparty/tinyply/source/tinyply.h
+  3rdparty/tinyply/source/tinyply.cpp
 
   # pieces source files
   3rdparty/pieces/vh_cmdline.cpp

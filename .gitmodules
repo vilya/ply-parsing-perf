@@ -7,3 +7,6 @@
 [submodule "3rdparty/tinyply"]
 	path = 3rdparty/tinyply
 	url = https://github.com/ddiakopoulos/tinyply.git
+[submodule "3rdparty/pieces"]
+	path = 3rdparty/pieces
+	url = git@github.com:vilya/pieces.git

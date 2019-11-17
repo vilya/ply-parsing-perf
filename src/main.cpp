@@ -32,9 +32,9 @@ enum CmdLineOption {
 static const vh::CommandLineOption options[] = {
   { eHelp,              'h',  "help",       nullptr, nullptr, "Print this help message and exit."                         },
   { eVersion,           'v',  "version",    nullptr, nullptr, "Print the application version and exit."                   },
-  { eNoMiniPBRT,        '\0', "no-miniply", nullptr, nullptr, "Disable the \"minpbrt\" parser."                           },
-  { eNoThreaded,        '\0', "no-happly",  nullptr, nullptr, "Disable the \"happly\" parser."                            },
-  { eNoPBRTParser,      '\0', "no-tinyply", nullptr, nullptr, "Disable the \"tinyply\" parser."                           },
+  { eNoMiniPLY,         '\0', "no-miniply", nullptr, nullptr, "Disable the \"minpbrt\" parser."                           },
+  { eNoHapply,          '\0', "no-happly",  nullptr, nullptr, "Disable the \"happly\" parser."                            },
+  { eNoTinyPLY,         '\0', "no-tinyply", nullptr, nullptr, "Disable the \"tinyply\" parser."                           },
   { eNoPrewarm,         '\0', "no-prewarm", nullptr, nullptr, "Don't pre-warm the disk cache before parsing (useful for very large scenes)." },
   { eCSV,               '\0', "csv",        nullptr, nullptr, "Format output as CSV, for easy import into a spreadsheet." },
   { vh::kUnknownOption, '\0', nullptr,      nullptr, nullptr, nullptr                                                     }
@@ -112,7 +112,7 @@ namespace vh {
   static bool prewarm_parser(const char* filename)
   {
     FILE* f = nullptr;
-    if (fopen_s(&f, plymesh->filename, "rb") != 0) {
+    if (fopen_s(&f, filename, "rb") != 0) {
       return false;
     }
 
