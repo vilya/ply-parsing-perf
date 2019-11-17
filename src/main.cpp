@@ -47,9 +47,9 @@ namespace vh {
 
 
   static bool prewarm_parser(const char* filename);
-  static bool parse_with_miniply(const char* filename, double& parsingSecsOut);
-  static bool parse_with_happly(const char* filename, double& parsingSecsOut);
-  static bool parse_with_tinyply(const char* filename, double& parsingSecsOut);
+  static bool parse_with_miniply(const char* filename, double& parsingMSOut);
+  static bool parse_with_happly(const char* filename, double& parsingMSOut);
+  static bool parse_with_tinyply(const char* filename, double& parsingMSOut);
 
 
   enum ParserID {
@@ -129,7 +129,7 @@ namespace vh {
   }
 
 
-  static bool parse_with_miniply(const char* filename, double& parsingSecsOut)
+  static bool parse_with_miniply(const char* filename, double& parsingMSOut)
   {
     Timer timer(true); // true --> autostart the timer.
 
@@ -214,14 +214,14 @@ namespace vh {
     }
 
     timer.stop();
-    parsingSecsOut = timer.elapsedSecs();
+    parsingMSOut = timer.elapsedMS();
 
     delete trimesh;
     return true;
   }
 
 
-  static bool parse_with_happly(const char* filename, double& parsingSecsOut)
+  static bool parse_with_happly(const char* filename, double& parsingMSOut)
   {
     Timer timer(true); // true --> autostart the timer.
 
@@ -315,14 +315,14 @@ namespace vh {
     }
 
     timer.stop();
-    parsingSecsOut = timer.elapsedSecs();
+    parsingMSOut = timer.elapsedMS();
 
     delete trimesh;
     return true;
   }
 
 
-  static bool parse_with_tinyply(const char* filename, double& parsingSecsOut)
+  static bool parse_with_tinyply(const char* filename, double& parsingMSOut)
   {
     Timer timer(true); // true --> autostart the timer.
 
@@ -431,7 +431,7 @@ namespace vh {
     }
 
     timer.stop();
-    parsingSecsOut = timer.elapsedSecs();
+    parsingMSOut = timer.elapsedMS();
 
     return true;
   }
@@ -490,7 +490,7 @@ namespace vh {
         continue;
       }
       if (showSpeedup && i != baseline) {
-        printf("| %12s (Speedup) ", kParserNames[i]);
+        printf("| %12s (Slowdown) ", kParserNames[i]);
       }
       else {
         printf("| %12s ", kParserNames[i]);
@@ -509,7 +509,7 @@ namespace vh {
         continue;
       }
       if (showSpeedup && i != baseline) {
-        printf("| ---------------------: ");
+        printf("| ----------------------: ");
       }
       else {
         printf("| -----------: ");
@@ -524,7 +524,7 @@ namespace vh {
 
   static void print_result(const Result& result, int filenameWidth, const bool enabled[kNumParsers], uint32_t baseline)
   {
-    bool showSpeedup = baseline < kNumParsers;
+    bool showSlowdown = baseline < kNumParsers;
 
     printf("| %-*s ", filenameWidth, result.filename.c_str());
 
@@ -532,16 +532,16 @@ namespace vh {
       if (!enabled[i]) {
         continue;
       }
-      if (showSpeedup && i != baseline) {
+      if (showSlowdown && i != baseline) {
         if (result.ok[i] && result.ok[baseline]) {
-          double speedup = result.secs[baseline] / result.secs[i];
-          printf("| %12.3lf (%6.2lfx) ", result.secs[i], speedup);
+          double slowdown = result.secs[i] / result.secs[baseline];
+          printf("| %12.3lf (%7.2lfx) ", result.secs[i], slowdown);
         }
         else if (result.ok[i] && !result.ok[baseline]) {
-          printf("| %12.3lf           ", result.secs[i]);
+          printf("| %12.3lf            ", result.secs[i]);
         }
         else {
-          printf("| %12s           ", "failed");
+          printf("| %12s            ", "failed");
         }
       }
       else {
