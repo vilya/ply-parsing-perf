@@ -1,0 +1,9 @@
+[submodule "3rdparty/miniply"]
+	path = 3rdparty/miniply
+	url = git@github.com:vilya/miniply.git
+[submodule "3rdparty/happly"]
+	path = 3rdparty/happly
+	url = https://github.com/nmwsharp/happly.git
+[submodule "3rdparty/tinyply"]
+	path = 3rdparty/tinyply
+	url = https://github.com/ddiakopoulos/tinyply.git
