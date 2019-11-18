@@ -1,5 +1,5 @@
-ply-parser-perf: Performance comparisons of PLY parsers
-=======================================================
+ply-parsing-perf: Performance comparisons of PLY parsers
+========================================================
 
 This project provides a command line app which parses 
 [PLY files](https://pbrt.org/fileformat-v3.html) using several different
