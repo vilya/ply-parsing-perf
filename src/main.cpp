@@ -2,6 +2,7 @@
 #include <miniply.h>
 #include <happly.h>
 #include <tinyply.h>
+#include <rply.h>
 
 #include <vh_cmdline.h>
 #include <vh_time.h>
@@ -25,6 +26,7 @@ enum CmdLineOption {
   eNoMiniPLY,
   eNoHapply,
   eNoTinyPLY,
+  eNoRPLY,
   eNoPrewarm,
   eCSV,
 };
@@ -35,6 +37,7 @@ static const vh::CommandLineOption options[] = {
   { eNoMiniPLY,         '\0', "no-miniply", nullptr, nullptr, "Disable the \"minpbrt\" parser."                           },
   { eNoHapply,          '\0', "no-happly",  nullptr, nullptr, "Disable the \"happly\" parser."                            },
   { eNoTinyPLY,         '\0', "no-tinyply", nullptr, nullptr, "Disable the \"tinyply\" parser."                           },
+  { eNoRPLY,            '\0', "no-rply",    nullptr, nullptr, "Disable the \"rply\" parser."                           },
   { eNoPrewarm,         '\0', "no-prewarm", nullptr, nullptr, "Don't pre-warm the disk cache before parsing (useful for very large scenes)." },
   { eCSV,               '\0', "csv",        nullptr, nullptr, "Format output as CSV, for easy import into a spreadsheet." },
   { vh::kUnknownOption, '\0', nullptr,      nullptr, nullptr, nullptr                                                     }
@@ -50,12 +53,14 @@ namespace vh {
   static bool parse_with_miniply(const char* filename, double& parsingMSOut);
   static bool parse_with_happly(const char* filename, double& parsingMSOut);
   static bool parse_with_tinyply(const char* filename, double& parsingMSOut);
+  static bool parse_with_rply(const char* filename, double& parsingMSOut);
 
 
   enum ParserID {
     eMiniPLY,
     eHapply,
     eTinyPLY,
+    eRPLY,
   };
 
 
@@ -63,6 +68,7 @@ namespace vh {
     "miniply",
     "happly",
     "tinyply",
+    "rply",
   };
 
 
@@ -70,6 +76,7 @@ namespace vh {
     parse_with_miniply,
     parse_with_happly,
     parse_with_tinyply,
+    parse_with_rply,
   };
   static const uint32_t kNumParsers = sizeof(kParsers) / sizeof(kParsers[0]);
 
@@ -330,7 +337,7 @@ namespace vh {
     try {
       std::ifstream ss(filename, std::ios::binary);
       if (ss.fail()) {
-        throw std::runtime_error(std::string("failed to open ") + filename);
+        throw std::exception();
       }
 
       tinyply::PlyFile file;
@@ -437,8 +444,172 @@ namespace vh {
   }
 
 
+  struct RPLYTriMeshBuilder {
+    TriMesh* trimesh = nullptr;
+    float* pos      = nullptr; // pointer to the current element in the trimeshes pos array.
+    float* normal   = nullptr; // pointer to the current element in the trimeshes normal array.
+    float* uv       = nullptr; // pointer to the current element in the trimeshes uv array.
+
+    std::vector<int> faceIndices;
+    std::vector<int> meshIndices;
+
+    ~RPLYTriMeshBuilder() {
+      delete trimesh;
+    }
+  };
+
+
+  static int rply_vertex_pos_cb(p_ply_argument arg)
+  {
+    RPLYTriMeshBuilder* builder = nullptr;
+    ply_get_argument_user_data(arg, reinterpret_cast<void**>(&builder), NULL);
+    *builder->pos = static_cast<float>(ply_get_argument_value(arg));
+    builder->pos++;
+    return 1;
+  }
+
+
+  static int rply_vertex_normal_cb(p_ply_argument arg)
+  {
+    RPLYTriMeshBuilder* builder = nullptr;
+    ply_get_argument_user_data(arg, reinterpret_cast<void**>(&builder), NULL);
+    *builder->normal = static_cast<float>(ply_get_argument_value(arg));
+    builder->normal++;
+    return 1;
+  }
+
+
+  static int rply_vertex_uv_cb(p_ply_argument arg)
+  {
+    RPLYTriMeshBuilder* builder = nullptr;
+    ply_get_argument_user_data(arg, reinterpret_cast<void**>(&builder), NULL);
+    *builder->uv = static_cast<float>(ply_get_argument_value(arg));
+    builder->uv++;
+    return 1;
+  }
+
+
+  static int rply_face_cb(p_ply_argument arg)
+  {
+    RPLYTriMeshBuilder* builder = nullptr;
+    ply_get_argument_user_data(arg, reinterpret_cast<void**>(&builder), NULL);
+
+    long length, valueIndex;
+    ply_get_argument_property(arg, nullptr, &length, &valueIndex);
+
+    if (length == 3) {
+      builder->meshIndices.push_back(static_cast<int>(ply_get_argument_value(arg)));
+    }
+    else if (length > 3) {
+      builder->faceIndices.push_back(static_cast<int>(ply_get_argument_value(arg)));
+      // If we're at the end of the index list for this face, triangulate it.
+      if (valueIndex + 1 == length) {
+        size_t first = builder->meshIndices.size();
+        builder->meshIndices.resize(first + size_t(length - 2));
+        miniply::triangulate_polygon(uint32_t(builder->faceIndices.size()),
+                                     builder->trimesh->pos,
+                                     builder->trimesh->numVerts,
+                                     builder->faceIndices.data(),
+                                     builder->meshIndices.data() + first);
+        builder->faceIndices.clear();
+      }
+    }
+    return 1;
+  }
+
+
+  static bool parse_with_rply(const char* filename, double& parsingMSOut)
+  {
+    Timer timer(true); // true --> autostart the timer.
+
+    p_ply_error_cb errorFunc = nullptr;
+    long idata = 0;
+    void* pdata = nullptr;
+
+    p_ply ply = ply_open(filename, errorFunc, idata, pdata);
+    if (!ply) {
+      return false;
+    }
+    if (!ply_read_header(ply)) {
+      ply_close(ply);
+      return false;
+    }
+
+    RPLYTriMeshBuilder builder;
+    builder.trimesh = new TriMesh();
+
+    uint32_t numVerts = uint32_t(ply_set_read_cb(ply, "vertex", "x", rply_vertex_pos_cb, &builder, 0));
+    bool ok = numVerts > 0 &&
+              (ply_set_read_cb(ply, "vertex", "y", rply_vertex_pos_cb, &builder, 0) > 0) &&
+              (ply_set_read_cb(ply, "vertex", "z", rply_vertex_pos_cb, &builder, 0) > 0);
+    if (!ok) {
+      ply_close(ply);
+      return false;
+    }
+    builder.trimesh->numVerts = numVerts;
+    builder.trimesh->pos = new float[numVerts * 3];
+    builder.pos = builder.trimesh->pos;
+
+    if (ply_set_read_cb(ply, "vertex", "nx", rply_vertex_normal_cb, &builder, 0) > 0 &&
+        ply_set_read_cb(ply, "vertex", "ny", rply_vertex_normal_cb, &builder, 0) > 0 &&
+        ply_set_read_cb(ply, "vertex", "nz", rply_vertex_normal_cb, &builder, 0) > 0) {
+      builder.trimesh->normal = new float[numVerts * 3];
+      builder.normal = builder.trimesh->normal;
+    }
+
+    bool hasUV = false;
+    if (ply_set_read_cb(ply, "vertex", "u", rply_vertex_uv_cb, &builder, 0) > 0 &&
+        ply_set_read_cb(ply, "vertex", "v", rply_vertex_uv_cb, &builder, 0) > 0) {
+      hasUV = true;
+    }
+    else if (ply_set_read_cb(ply, "vertex", "s", rply_vertex_uv_cb, &builder, 0) > 0 &&
+             ply_set_read_cb(ply, "vertex", "t", rply_vertex_uv_cb, &builder, 0) > 0) {
+      hasUV = true;
+    }
+    else if (ply_set_read_cb(ply, "vertex", "texture_u", rply_vertex_uv_cb, &builder, 0) > 0 &&
+             ply_set_read_cb(ply, "vertex", "texture_v", rply_vertex_uv_cb, &builder, 0) > 0) {
+      hasUV = true;
+    }
+    else if (ply_set_read_cb(ply, "vertex", "texture_s", rply_vertex_uv_cb, &builder, 0) > 0 &&
+             ply_set_read_cb(ply, "vertex", "texture_t", rply_vertex_uv_cb, &builder, 0) > 0) {
+      hasUV = true;
+    }
+    if (hasUV) {
+      builder.trimesh->uv = new float[numVerts * 3];
+      builder.uv = builder.trimesh->uv;
+    }
+
+    uint32_t numFaces = uint32_t(ply_set_read_cb(ply, "face", "vertex_indices", rply_face_cb, &builder, 0));
+    builder.faceIndices.reserve(256); // Reserve enough space for a polygon with 256 vertices, any larger will reallocate.
+    builder.meshIndices.reserve(numFaces * 6); // Reserve enough space to handle each face being a quad, just in case. Will grow if more space is needed.
+
+    if (!ply_read(ply)) {
+      ply_close(ply);
+      return false;
+    }
+
+    ply_close(ply);
+
+    TriMesh* trimesh = builder.trimesh;
+    builder.trimesh = nullptr;
+
+    trimesh->indices = new int[builder.meshIndices.size()];
+    memcpy(trimesh->indices, builder.meshIndices.data(), builder.meshIndices.size() * sizeof(int));
+
+    timer.stop();
+    parsingMSOut = timer.elapsedMS();
+
+    delete trimesh;
+
+    return true;
+  }
+
+
   static void parse(const char* filename, const bool enabled[kNumParsers], bool prewarm, Result& result)
   {
+    printf("Parsing %s\n", filename);
+    fflush(stdout);
+
     result.filename = filename;
     if (prewarm) {
       prewarm_parser(filename);
@@ -447,8 +618,6 @@ namespace vh {
       if (!enabled[p]) {
         continue;
       }
-      printf("Parsing %s with %s...\n", filename, kParserNames[p]);
-      fflush(stdout);
       result.ok[p] = kParsers[p](filename, result.secs[p]);
     }
   }
@@ -698,7 +867,6 @@ int main(int argc, char** argv)
   std::vector<std::string> filenames;
   for (int i = 1; i < argc; i++) {
     if (has_extension(argv[i], "txt")) {
-      printf("file %s has extension 'txt'\n", argv[i]);
       FILE* f = nullptr;
       if (fopen_s(&f, argv[i], "r") == 0) {
         while (fgets(filenameBuffer, kFilenameBufferLen, f)) {
@@ -716,11 +884,6 @@ int main(int argc, char** argv)
     else {
       filenames.push_back(argv[i]);
     }
-  }
-
-  printf("Parsing these files:\n");
-  for (const std::string& filename : filenames) {
-    printf("  %s\n", filename.c_str());
   }
 
   std::vector<Result> results(filenames.size(), Result{});
