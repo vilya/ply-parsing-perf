@@ -32,6 +32,7 @@ enum CmdLineOption {
   eQuiet,
   eOutFile,
   eTransposed,
+  eSummary,
 };
 
 static const vh::CommandLineOption options[] = {
@@ -46,6 +47,7 @@ static const vh::CommandLineOption options[] = {
   { eQuiet,             'q',  "quiet",      nullptr, nullptr, "Don't print any intermediate text, just the final results." },
   { eOutFile,           'o',  "out-file",   "%s",    nullptr, "Write the results to a file rather than stdout."            },
   { eTransposed,        '\0', "transposed", nullptr, nullptr, "Parse all files with one parser before parsing all files with the next parser." },
+  { eSummary,           's',  "summary",    nullptr, nullptr, "Only show the total parsing times, not the times for each file." },
   { vh::kUnknownOption, '\0', nullptr,      nullptr, nullptr, nullptr                                                      }
 };
 
@@ -853,6 +855,7 @@ int main(int argc, char** argv)
   bool printAsCSV = false;
   bool verbose = true;
   bool transposed = false;
+  bool summary = false;
   const char* outfile = nullptr;
 
   int argi = 1;
@@ -899,6 +902,9 @@ int main(int argc, char** argv)
       case eTransposed:
         transposed = true;
         break;
+
+      case eSummary:
+        summary = true;
 
       // Handle other options here
 
@@ -973,6 +979,10 @@ int main(int argc, char** argv)
     for (uint32_t p = 0; p < kNumParsers; p++) {
       overall.msecs[p] += result.msecs[p];
     }
+  }
+
+  if (summary) {
+    results.clear();
   }
   results.push_back(overall);
 
