@@ -94,6 +94,17 @@ namespace vh {
   };
 
 
+  static int file_open(FILE** f, const char* filename, const char* mode)
+  {
+  #ifdef _WIN32
+    return fopen_s(f, filename, mode);
+  #else
+    *f = fopen(filename, mode);
+    return (*f != nullptr) ? 0 : errno;
+  #endif
+  }
+
+
   // This is what we populate to test & benchmark data extraction from the PLY
   // file. It's an indexed mesh which allows any number of vertices per
   // polygon (no triangulation required).
@@ -137,7 +148,7 @@ namespace vh {
   static bool prewarm_parser(const char* filename)
   {
     FILE* f = nullptr;
-    if (fopen_s(&f, filename, "rb") != 0) {
+    if (file_open(&f, filename, "rb") != 0) {
       return false;
     }
 
@@ -920,7 +931,7 @@ int main(int argc, char** argv)
   for (int i = 1; i < argc; i++) {
     if (has_extension(argv[i], "txt")) {
       FILE* f = nullptr;
-      if (fopen_s(&f, argv[i], "r") == 0) {
+      if (file_open(&f, argv[i], "r") == 0) {
         while (fgets(filenameBuffer, kFilenameBufferLen, f)) {
           results.push_back(Result{});
           results.back().filename = filenameBuffer;
@@ -967,7 +978,7 @@ int main(int argc, char** argv)
 
   FILE* out = stdout;
   if (outfile != nullptr) {
-    if (fopen_s(&out, outfile, "w") != 0) {
+    if (file_open(&out, outfile, "w") != 0) {
       fprintf(stderr, "Failed to open output file %s for writing\n", outfile);
       return EXIT_FAILURE;
     }
