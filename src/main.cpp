@@ -31,6 +31,7 @@ enum CmdLineOption {
   eCSV,
   eQuiet,
   eOutFile,
+  eTransposed,
 };
 
 static const vh::CommandLineOption options[] = {
@@ -44,6 +45,7 @@ static const vh::CommandLineOption options[] = {
   { eCSV,               '\0', "csv",        nullptr, nullptr, "Format output as CSV, for easy import into a spreadsheet."  },
   { eQuiet,             'q',  "quiet",      nullptr, nullptr, "Don't print any intermediate text, just the final results." },
   { eOutFile,           'o',  "out-file",   "%s",    nullptr, "Write the results to a file rather than stdout."            },
+  { eTransposed,        '\0', "transposed", nullptr, nullptr, "Parse all files with one parser before parsing all files with the next parser." },
   { vh::kUnknownOption, '\0', nullptr,      nullptr, nullptr, nullptr                                                      }
 };
 
@@ -87,7 +89,7 @@ namespace vh {
 
   struct Result {
     std::string filename;
-    double secs[kNumParsers];
+    double msecs[kNumParsers];
     bool ok[kNumParsers];
   };
 
@@ -599,22 +601,59 @@ namespace vh {
   }
 
 
-  static void parse(const char* filename, const bool enabled[kNumParsers], bool prewarm, bool verbose, Result& result)
+  static void parse_all(const bool enabled[kNumParsers],
+                        bool prewarm,
+                        bool verbose,
+                        size_t n,
+                        Result results[])
   {
-    if (verbose) {
-      printf("Parsing %s\n", filename);
-      fflush(stdout);
+    for (size_t i = 0; i < n; i++) {
+      const char* filename = results[i].filename.c_str();
+      if (verbose) {
+        printf("Parsing %s\n", filename);
+        fflush(stdout);
+      }
+      if (prewarm) {
+        prewarm_parser(filename);
+      }
+      for (uint32_t p = 0; p < kNumParsers; p++) {
+        if (!enabled[p]) {
+          continue;
+        }
+        results[i].ok[p] = kParsers[p](filename, results[i].msecs[p]);
+      }
+    }
+  }
+
+
+  static void parse_transposed(const bool enabled[kNumParsers],
+                               bool prewarm,
+                               bool verbose,
+                               size_t n,
+                               Result results[])
+  {
+    if (prewarm) {
+      if (verbose) {
+        printf("Prewarming %llu files\n", uint64_t(n));
+      }
+      for (size_t i = 0; i < n; i++) {
+        const char* filename = results[i].filename.c_str();
+        prewarm_parser(filename);
+      }
     }
 
-    result.filename = filename;
-    if (prewarm) {
-      prewarm_parser(filename);
-    }
     for (uint32_t p = 0; p < kNumParsers; p++) {
       if (!enabled[p]) {
         continue;
       }
-      result.ok[p] = kParsers[p](filename, result.secs[p]);
+      if (verbose) {
+        printf("Parsing %llu files with %s\n", uint64_t(n), kParserNames[p]);
+        fflush(stdout);
+      }
+      for (size_t i = 0; i < n; i++) {
+        const char* filename = results[i].filename.c_str();
+        results[i].ok[p] = kParsers[p](filename, results[i].msecs[p]);
+      }
     }
   }
 
@@ -697,11 +736,11 @@ namespace vh {
       }
       if (showSlowdown && i != baseline) {
         if (result.ok[i] && result.ok[baseline]) {
-          double slowdown = result.secs[i] / result.secs[baseline];
-          fprintf(out, "| %12.3lf (%7.2lfx) ", result.secs[i], slowdown);
+          double slowdown = result.msecs[i] / result.msecs[baseline];
+          fprintf(out, "| %12.3lf (%7.2lfx) ", result.msecs[i], slowdown);
         }
         else if (result.ok[i] && !result.ok[baseline]) {
-          fprintf(out, "| %12.3lf            ", result.secs[i]);
+          fprintf(out, "| %12.3lf            ", result.msecs[i]);
         }
         else {
           fprintf(out, "| %12s            ", "failed");
@@ -709,7 +748,7 @@ namespace vh {
       }
       else {
         if (result.ok[i]) {
-          fprintf(out, "| %12.3lf ", result.secs[i]);
+          fprintf(out, "| %12.3lf ", result.msecs[i]);
         }
         else {
           fprintf(out, "| %12s ", "failed");
@@ -761,7 +800,7 @@ namespace vh {
         }
 
         if (result.ok[i]) {
-          fprintf(out, ", %lf", result.secs[i]);
+          fprintf(out, ", %lf", result.msecs[i]);
         }
         else {
           fprintf(out, ", \"failed\"");
@@ -798,6 +837,7 @@ int main(int argc, char** argv)
   bool prewarm = true;
   bool printAsCSV = false;
   bool verbose = true;
+  bool transposed = false;
   const char* outfile = nullptr;
 
   int argi = 1;
@@ -841,6 +881,10 @@ int main(int argc, char** argv)
         parse_option(argc, argv, argi, &options[match.id], &outfile);
         break;
 
+      case eTransposed:
+        transposed = true;
+        break;
+
       // Handle other options here
 
       default:
@@ -868,15 +912,16 @@ int main(int argc, char** argv)
   char* filenameBuffer = new char[kFilenameBufferLen + 1];
   filenameBuffer[kFilenameBufferLen] = '\0';
 
-  std::vector<std::string> filenames;
+  std::vector<Result> results;
   for (int i = 1; i < argc; i++) {
     if (has_extension(argv[i], "txt")) {
       FILE* f = nullptr;
       if (fopen_s(&f, argv[i], "r") == 0) {
         while (fgets(filenameBuffer, kFilenameBufferLen, f)) {
-          filenames.push_back(filenameBuffer);
-          while (filenames.back().back() == '\n') {
-            filenames.back().pop_back();
+          results.push_back(Result{});
+          results.back().filename = filenameBuffer;
+          while (results.back().filename.back() == '\n') {
+            results.back().filename.pop_back();
           }
         }
         fclose(f);
@@ -886,17 +931,35 @@ int main(int argc, char** argv)
       }
     }
     else {
-      filenames.push_back(argv[i]);
+      results.push_back(Result{});
+      results.back().filename = argv[i];
     }
   }
+  delete[] filenameBuffer;
 
-  std::vector<Result> results(filenames.size(), Result{});
-  for (size_t i = 0; i < filenames.size(); i++) {
-    parse(filenames[i].c_str(), enabled, prewarm, verbose, results[i]);
+  if (transposed) {
+    parse_transposed(enabled, prewarm, verbose, results.size(), results.data());
+  }
+  else {
+    parse_all(enabled, prewarm, verbose, results.size(), results.data());
   }
   if (verbose) {
     printf("Parsing complete!\n\n");
   }
+
+  // Add a special result containing the total parsing times for each parser.
+  Result overall;
+  overall.filename = "Overall Total";
+  for (uint32_t p = 0; p < kNumParsers; p++) {
+    overall.ok[p] = enabled[p];
+    overall.msecs[p] = 0.0;
+  }
+  for (const Result& result : results) {
+    for (uint32_t p = 0; p < kNumParsers; p++) {
+      overall.msecs[p] += result.msecs[p];
+    }
+  }
+  results.push_back(overall);
 
   FILE* out = stdout;
   if (outfile != nullptr) {
