@@ -94,10 +94,21 @@ namespace vh {
   };
 
 
+  static int file_open(FILE** f, const char* filename, const char* mode)
+  {
+  #ifdef _WIN32
+    return fopen_s(f, filename, mode);
+  #else
+    *f = fopen(filename, mode);
+    return (*f != nullptr) ? 0 : errno;
+  #endif
+  }
+
+
   // This is what we populate to test & benchmark data extraction from the PLY
-  // file. It's a triangle mesh, so any faces with more than three verts will
-  // get triangulated.
-  struct TriMesh {
+  // file. It's an indexed mesh which allows any number of vertices per
+  // polygon (no triangulation required).
+  struct PolyMesh {
     // Per-vertex data
     float* pos     = nullptr; // has 3*numVerts elements.
     float* normal  = nullptr; // if non-null, has 3 * numVerts elements.
@@ -106,13 +117,18 @@ namespace vh {
 
     // Per-index data
     int* indices   = nullptr;
-    uint32_t numIndices = 0; // number of indices = 3 times the number of faces.
+    uint32_t numIndices = 0; // number of indices = sum of the number of indices for each face
 
-    ~TriMesh() {
+    // Per-face data
+    uint32_t* faceStart = nullptr; // Entry 'i' is the index at which the indices for this face start. It has `numFaces + 1` entries.
+    uint32_t numFaces = 0;
+
+    ~PolyMesh() {
       delete[] pos;
       delete[] normal;
       delete[] uv;
       delete[] indices;
+      delete[] faceStart;
     }
 
     bool all_indices_valid() const {
@@ -132,7 +148,7 @@ namespace vh {
   static bool prewarm_parser(const char* filename)
   {
     FILE* f = nullptr;
-    if (fopen_s(&f, filename, "rb") != 0) {
+    if (file_open(&f, filename, "rb") != 0) {
       return false;
     }
 
@@ -158,7 +174,7 @@ namespace vh {
       return false;
     }
 
-    TriMesh* trimesh = new TriMesh();
+    PolyMesh* polymesh = new PolyMesh();
     bool gotVerts = false;
     bool gotFaces = false;
     while (reader.has_element() && (!gotVerts || !gotFaces)) {
@@ -170,16 +186,16 @@ namespace vh {
         if (!reader.find_pos(propIdxs)) {
           break;
         }
-        trimesh->numVerts = reader.num_rows();
-        trimesh->pos = new float[trimesh->numVerts * 3];
-        reader.extract_columns(propIdxs, 3, miniply::PLYPropertyType::Float, trimesh->pos);
+        polymesh->numVerts = reader.num_rows();
+        polymesh->pos = new float[polymesh->numVerts * 3];
+        reader.extract_columns(propIdxs, 3, miniply::PLYPropertyType::Float, polymesh->pos);
         if (reader.find_normal(propIdxs)) {
-          trimesh->normal = new float[trimesh->numVerts * 3];
-          reader.extract_columns(propIdxs, 3, miniply::PLYPropertyType::Float, trimesh->normal);
+          polymesh->normal = new float[polymesh->numVerts * 3];
+          reader.extract_columns(propIdxs, 3, miniply::PLYPropertyType::Float, polymesh->normal);
         }
         if (reader.find_texcoord(propIdxs)) {
-          trimesh->uv = new float[trimesh->numVerts * 2];
-          reader.extract_columns(propIdxs, 2, miniply::PLYPropertyType::Float, trimesh->uv);
+          polymesh->uv = new float[polymesh->numVerts * 2];
+          reader.extract_columns(propIdxs, 2, miniply::PLYPropertyType::Float, polymesh->uv);
         }
         gotVerts = true;
       }
@@ -191,35 +207,35 @@ namespace vh {
         if (!reader.find_indices(&propIdx)) {
           break;
         }
-        bool polys = reader.requires_triangulation(propIdx);
-        if (polys && !gotVerts) {
-          fprintf(stderr, "Error: face data needing triangulation found before vertex data.\n");
-          break;
+
+        polymesh->numFaces = reader.num_rows();
+        polymesh->faceStart = new uint32_t[polymesh->numFaces + 1];
+        const uint32_t* faceCounts = reader.get_list_counts(propIdx);
+        uint32_t faceStart = 0;
+        for (uint32_t i = 0; i < polymesh->numFaces; i++) {
+          polymesh->faceStart[i] = faceStart;
+          faceStart += faceCounts[i];
         }
-        if (polys) {
-          trimesh->numIndices = reader.num_triangles(propIdx) * 3;
-          trimesh->indices = new int[trimesh->numIndices];
-          reader.extract_triangles(propIdx, trimesh->pos, trimesh->numVerts, miniply::PLYPropertyType::Int, trimesh->indices);
-        }
-        else {
-          trimesh->numIndices = reader.num_rows() * 3;
-          trimesh->indices = new int[trimesh->numIndices];
-          reader.extract_list_column(propIdx, miniply::PLYPropertyType::Int, trimesh->indices);
-        }
+        polymesh->faceStart[polymesh->numFaces] = faceStart;
+
+        polymesh->numIndices = polymesh->faceStart[polymesh->numFaces];
+        polymesh->indices = new int[polymesh->numIndices];
+        reader.extract_list_column(propIdx, miniply::PLYPropertyType::Int, polymesh->indices);
+
         gotFaces = true;
       }
       reader.next_element();
     }
 
     if (!gotVerts || !gotFaces) {
-      delete trimesh;
+      delete polymesh;
       return false;
     }
 
     timer.stop();
     parsingMSOut = timer.elapsedMS();
 
-    delete trimesh;
+    delete polymesh;
     return true;
   }
 
@@ -233,32 +249,32 @@ namespace vh {
       return false;
     }
 
-    TriMesh* trimesh = new TriMesh();
+    PolyMesh* polymesh = new PolyMesh();
 
     // Load vertex data.
     {
       happly::Element& elem = plyIn.getElement("vertex");
-      trimesh->numVerts = uint32_t(elem.count);
+      polymesh->numVerts = uint32_t(elem.count);
 
-      trimesh->pos = new float[trimesh->numVerts * 3];
+      polymesh->pos = new float[polymesh->numVerts * 3];
       std::vector<float> xvals = elem.getProperty<float>("x");
       std::vector<float> yvals = elem.getProperty<float>("y");
       std::vector<float> zvals = elem.getProperty<float>("z");
-      for (uint32_t i = 0; i < trimesh->numVerts; i++) {
-        trimesh->pos[3 * i    ] = xvals[i];
-        trimesh->pos[3 * i + 1] = yvals[i];
-        trimesh->pos[3 * i + 2] = zvals[i];
+      for (uint32_t i = 0; i < polymesh->numVerts; i++) {
+        polymesh->pos[3 * i    ] = xvals[i];
+        polymesh->pos[3 * i + 1] = yvals[i];
+        polymesh->pos[3 * i + 2] = zvals[i];
       }
 
       if (elem.hasProperty("nx") && elem.hasProperty("ny") && elem.hasProperty("nz")) {
-        trimesh->normal = new float[trimesh->numVerts * 3];
+        polymesh->normal = new float[polymesh->numVerts * 3];
         xvals = elem.getProperty<float>("nx");
         yvals = elem.getProperty<float>("ny");
         zvals = elem.getProperty<float>("nz");
-        for (uint32_t i = 0; i < trimesh->numVerts; i++) {
-          trimesh->normal[3 * i    ] = xvals[i];
-          trimesh->normal[3 * i + 1] = yvals[i];
-          trimesh->normal[3 * i + 2] = zvals[i];
+        for (uint32_t i = 0; i < polymesh->numVerts; i++) {
+          polymesh->normal[3 * i    ] = xvals[i];
+          polymesh->normal[3 * i + 1] = yvals[i];
+          polymesh->normal[3 * i + 2] = zvals[i];
         }
       }
 
@@ -284,10 +300,10 @@ namespace vh {
         hasUV = true;
       }
       if (hasUV) {
-        trimesh->uv = new float[trimesh->numVerts * 2];
-        for (uint32_t i = 0; i < trimesh->numVerts; i++) {
-          trimesh->uv[2 * i    ] = xvals[i];
-          trimesh->uv[2 * i + 1] = yvals[i];
+        polymesh->uv = new float[polymesh->numVerts * 2];
+        for (uint32_t i = 0; i < polymesh->numVerts; i++) {
+          polymesh->uv[2 * i    ] = xvals[i];
+          polymesh->uv[2 * i + 1] = yvals[i];
         }
       }
     }
@@ -296,31 +312,28 @@ namespace vh {
     {
       std::vector<std::vector<int>> faces = plyIn.getFaceIndices<int>();
 
-      uint32_t numTriangles = 0;
-      for (const std::vector<int>& face : faces) {
-        if (face.size() < 3) {
-          continue;
-        }
-        numTriangles += uint32_t(face.size() - 2);
+      polymesh->numFaces = static_cast<uint32_t>(faces.size());
+      polymesh->faceStart = new uint32_t[polymesh->numFaces + 1];
+      uint32_t faceStart = 0;
+      for (uint32_t i = 0; i < polymesh->numFaces; i++) {
+        polymesh->faceStart[i] = faceStart;
+        faceStart += static_cast<uint32_t>(faces[i].size());
       }
+      polymesh->faceStart[polymesh->numFaces] = faceStart;
 
-      trimesh->numIndices = numTriangles * 3;
-      trimesh->indices = new int[trimesh->numIndices];
-
-      int* dst = trimesh->indices;
-      for (const std::vector<int>& face : faces) {
-        if (face.size() < 3) {
-          continue;
-        }
-        uint32_t faceTris = miniply::triangulate_polygon(uint32_t(face.size()), trimesh->pos, trimesh->numVerts, face.data(), dst);
-        dst += (faceTris * 3);
+      polymesh->numIndices = polymesh->faceStart[polymesh->numFaces];
+      polymesh->indices = new int[polymesh->numIndices];
+      for (uint32_t i = 0; i < polymesh->numFaces; i++) {
+        const std::vector<int>& face = faces[i];
+        faceStart = polymesh->faceStart[i];
+        std::memcpy(polymesh->indices + polymesh->faceStart[i], face.data(), face.size() * sizeof(int));
       }
     }
 
     timer.stop();
     parsingMSOut = timer.elapsedMS();
 
-    delete trimesh;
+    delete polymesh;
     return true;
   }
 
@@ -329,7 +342,7 @@ namespace vh {
   {
     Timer timer(true); // true --> autostart the timer.
 
-    TriMesh* trimesh = nullptr;
+    PolyMesh* polymesh = nullptr;
     try {
       std::ifstream ss(filename, std::ios::binary);
       if (ss.fail()) {
@@ -388,12 +401,12 @@ namespace vh {
         throw std::exception();
       }
 
-      trimesh = new TriMesh();
+      polymesh = new PolyMesh();
 
-      trimesh->numVerts = uint32_t(vertices->count);
-      trimesh->pos = new float[trimesh->numVerts * 3];
+      polymesh->numVerts = uint32_t(vertices->count);
+      polymesh->pos = new float[polymesh->numVerts * 3];
       if (vertices->t == tinyply::Type::FLOAT32) {
-        std::memcpy(trimesh->pos, vertices->buffer.get(), vertices->buffer.size_bytes());
+        std::memcpy(polymesh->pos, vertices->buffer.get(), vertices->buffer.size_bytes());
       }
       else {
         fprintf(stderr, "Don't know how to convert to floats for vertices attribute");
@@ -401,9 +414,9 @@ namespace vh {
       }
 
       if (normals) {
-        trimesh->normal = new float[trimesh->numVerts * 3];
+        polymesh->normal = new float[polymesh->numVerts * 3];
         if (normals->t == tinyply::Type::FLOAT32) {
-          std::memcpy(trimesh->normal, normals->buffer.get(), normals->buffer.size_bytes());
+          std::memcpy(polymesh->normal, normals->buffer.get(), normals->buffer.size_bytes());
         }
         else {
           fprintf(stderr, "Don't know how to convert to floats for normals attribute");
@@ -412,9 +425,9 @@ namespace vh {
       }
 
       if (uvs) {
-        trimesh->uv = new float[trimesh->numVerts * 2];
+        polymesh->uv = new float[polymesh->numVerts * 2];
         if (uvs->t == tinyply::Type::FLOAT32) {
-          std::memcpy(trimesh->uv, uvs->buffer.get(), uvs->buffer.size_bytes());
+          std::memcpy(polymesh->uv, uvs->buffer.get(), uvs->buffer.size_bytes());
         }
         else {
           fprintf(stderr, "Don't know how to convert to floats for uvs attribute");
@@ -422,35 +435,49 @@ namespace vh {
         }
       }
 
-      uint32_t numTriangles = uint32_t(faces->count); // TODO: check for polygons with > 3 verts, recalculate this accordingly.
-      trimesh->numIndices = numTriangles * 3;
-      trimesh->indices = new int[trimesh->numIndices];
+      polymesh->numFaces = static_cast<uint32_t>(faces->count);
+      polymesh->faceStart = new uint32_t[polymesh->numFaces + 1];
+      uint32_t faceStart = 0;
+      for (uint32_t i = 0; i < polymesh->numFaces; i++) {
+        polymesh->faceStart[i] = faceStart;
+        // TODO: increase `faceStart` by the number of vertices on this face.
+      }
+      polymesh->faceStart[polymesh->numFaces] = faceStart;
 
-      // TODO: figure out how to extract face data from one of tinyply's buffers.
+      polymesh->numIndices = polymesh->numFaces;
+      polymesh->indices = new int[polymesh->numIndices];
+      for (uint32_t i = 0; i < polymesh->numFaces; i++) {
+        // TODO: figure out how to extract the vertex indices for the current face from one of tinyply's buffers.
+        polymesh->indices[i] = 0;
+      }
     }
     catch (const std::exception& /*e*/) {
-      delete trimesh;
-      trimesh = nullptr;
+      delete polymesh;
+      polymesh = nullptr;
     }
 
     timer.stop();
     parsingMSOut = timer.elapsedMS();
 
+    if (polymesh == nullptr) {
+      return false;
+    }
+    delete polymesh;
     return true;
   }
 
 
   struct RPLYTriMeshBuilder {
-    TriMesh* trimesh = nullptr;
+    PolyMesh* polymesh = nullptr;
     float* pos      = nullptr; // pointer to the current element in the trimeshes pos array.
     float* normal   = nullptr; // pointer to the current element in the trimeshes normal array.
     float* uv       = nullptr; // pointer to the current element in the trimeshes uv array.
 
-    std::vector<int> faceIndices;
+    std::vector<uint32_t> faceStart;
     std::vector<int> meshIndices;
 
     ~RPLYTriMeshBuilder() {
-      delete trimesh;
+      delete polymesh;
     }
   };
 
@@ -493,22 +520,9 @@ namespace vh {
     long length, valueIndex;
     ply_get_argument_property(arg, nullptr, &length, &valueIndex);
 
-    if (length == 3) {
-      builder->meshIndices.push_back(static_cast<int>(ply_get_argument_value(arg)));
-    }
-    else if (length > 3) {
-      builder->faceIndices.push_back(static_cast<int>(ply_get_argument_value(arg)));
-      // If we're at the end of the index list for this face, triangulate it.
-      if (valueIndex + 1 == length) {
-        size_t first = builder->meshIndices.size();
-        builder->meshIndices.resize(first + size_t(length - 2));
-        miniply::triangulate_polygon(uint32_t(builder->faceIndices.size()),
-                                     builder->trimesh->pos,
-                                     builder->trimesh->numVerts,
-                                     builder->faceIndices.data(),
-                                     builder->meshIndices.data() + first);
-        builder->faceIndices.clear();
-      }
+    builder->meshIndices.push_back(static_cast<int>(ply_get_argument_value(arg)));
+    if (valueIndex + 1 == length) {
+      builder->faceStart.push_back(static_cast<uint32_t>(builder->meshIndices.size()));
     }
     return 1;
   }
@@ -532,7 +546,7 @@ namespace vh {
     }
 
     RPLYTriMeshBuilder builder;
-    builder.trimesh = new TriMesh();
+    builder.polymesh = new PolyMesh();
 
     uint32_t numVerts = uint32_t(ply_set_read_cb(ply, "vertex", "x", rply_vertex_pos_cb, &builder, 0));
     bool ok = numVerts > 0 &&
@@ -542,15 +556,15 @@ namespace vh {
       ply_close(ply);
       return false;
     }
-    builder.trimesh->numVerts = numVerts;
-    builder.trimesh->pos = new float[numVerts * 3];
-    builder.pos = builder.trimesh->pos;
+    builder.polymesh->numVerts = numVerts;
+    builder.polymesh->pos = new float[numVerts * 3];
+    builder.pos = builder.polymesh->pos;
 
     if (ply_set_read_cb(ply, "vertex", "nx", rply_vertex_normal_cb, &builder, 0) > 0 &&
         ply_set_read_cb(ply, "vertex", "ny", rply_vertex_normal_cb, &builder, 0) > 0 &&
         ply_set_read_cb(ply, "vertex", "nz", rply_vertex_normal_cb, &builder, 0) > 0) {
-      builder.trimesh->normal = new float[numVerts * 3];
-      builder.normal = builder.trimesh->normal;
+      builder.polymesh->normal = new float[numVerts * 3];
+      builder.normal = builder.polymesh->normal;
     }
 
     bool hasUV = false;
@@ -571,13 +585,14 @@ namespace vh {
       hasUV = true;
     }
     if (hasUV) {
-      builder.trimesh->uv = new float[numVerts * 3];
-      builder.uv = builder.trimesh->uv;
+      builder.polymesh->uv = new float[numVerts * 3];
+      builder.uv = builder.polymesh->uv;
     }
 
     uint32_t numFaces = uint32_t(ply_set_read_cb(ply, "face", "vertex_indices", rply_face_cb, &builder, 0));
-    builder.faceIndices.reserve(256); // Reserve enough space for a polygon with 256 vertices, any larger will reallocate.
+    builder.faceStart.reserve(numFaces + 1); // Reserve enough space for a polygon with 256 vertices, any larger will reallocate.
     builder.meshIndices.reserve(numFaces * 6); // Reserve enough space to handle each face being a quad, just in case. Will grow if more space is needed.
+    builder.faceStart.push_back(0);
 
     if (!ply_read(ply)) {
       ply_close(ply);
@@ -586,16 +601,16 @@ namespace vh {
 
     ply_close(ply);
 
-    TriMesh* trimesh = builder.trimesh;
-    builder.trimesh = nullptr;
+    PolyMesh* polymesh = builder.polymesh;
+    builder.polymesh = nullptr;
 
-    trimesh->indices = new int[builder.meshIndices.size()];
-    memcpy(trimesh->indices, builder.meshIndices.data(), builder.meshIndices.size() * sizeof(int));
+    polymesh->indices = new int[builder.meshIndices.size()];
+    memcpy(polymesh->indices, builder.meshIndices.data(), builder.meshIndices.size() * sizeof(int));
 
     timer.stop();
     parsingMSOut = timer.elapsedMS();
 
-    delete trimesh;
+    delete polymesh;
 
     return true;
   }
@@ -916,7 +931,7 @@ int main(int argc, char** argv)
   for (int i = 1; i < argc; i++) {
     if (has_extension(argv[i], "txt")) {
       FILE* f = nullptr;
-      if (fopen_s(&f, argv[i], "r") == 0) {
+      if (file_open(&f, argv[i], "r") == 0) {
         while (fgets(filenameBuffer, kFilenameBufferLen, f)) {
           results.push_back(Result{});
           results.back().filename = filenameBuffer;
@@ -963,7 +978,7 @@ int main(int argc, char** argv)
 
   FILE* out = stdout;
   if (outfile != nullptr) {
-    if (fopen_s(&out, outfile, "w") != 0) {
+    if (file_open(&out, outfile, "w") != 0) {
       fprintf(stderr, "Failed to open output file %s for writing\n", outfile);
       return EXIT_FAILURE;
     }
