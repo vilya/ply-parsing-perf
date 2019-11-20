@@ -190,14 +190,14 @@ namespace vh {
         }
         polymesh->numVerts = reader.num_rows();
         polymesh->pos = new float[polymesh->numVerts * 3];
-        reader.extract_columns(propIdxs, 3, miniply::PLYPropertyType::Float, polymesh->pos);
+        reader.extract_properties(propIdxs, 3, miniply::PLYPropertyType::Float, polymesh->pos);
         if (reader.find_normal(propIdxs)) {
           polymesh->normal = new float[polymesh->numVerts * 3];
-          reader.extract_columns(propIdxs, 3, miniply::PLYPropertyType::Float, polymesh->normal);
+          reader.extract_properties(propIdxs, 3, miniply::PLYPropertyType::Float, polymesh->normal);
         }
         if (reader.find_texcoord(propIdxs)) {
           polymesh->uv = new float[polymesh->numVerts * 2];
-          reader.extract_columns(propIdxs, 2, miniply::PLYPropertyType::Float, polymesh->uv);
+          reader.extract_properties(propIdxs, 2, miniply::PLYPropertyType::Float, polymesh->uv);
         }
         gotVerts = true;
       }
@@ -222,7 +222,7 @@ namespace vh {
 
         polymesh->numIndices = polymesh->faceStart[polymesh->numFaces];
         polymesh->indices = new int[polymesh->numIndices];
-        reader.extract_list_column(propIdx, miniply::PLYPropertyType::Int, polymesh->indices);
+        reader.extract_list_property(propIdx, miniply::PLYPropertyType::Int, polymesh->indices);
 
         gotFaces = true;
       }
