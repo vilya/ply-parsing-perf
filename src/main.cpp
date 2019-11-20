@@ -180,7 +180,7 @@ namespace vh {
     bool gotVerts = false;
     bool gotFaces = false;
     while (reader.has_element() && (!gotVerts || !gotFaces)) {
-      if (!gotVerts && reader.element_is("vertex")) {
+      if (!gotVerts && reader.element_is(miniply::kPLYVertexElement)) {
         if (!reader.load_element()) {
           break;
         }
@@ -201,7 +201,7 @@ namespace vh {
         }
         gotVerts = true;
       }
-      else if (!gotFaces && reader.element_is("face")) {
+      else if (!gotFaces && reader.element_is(miniply::kPLYFaceElement)) {
         if (!reader.load_element()) {
           break;
         }
