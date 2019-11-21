@@ -35,37 +35,43 @@ enum CmdLineOption {
   eSummary,
   eSpeedup,
   eSlowdown,
+  eVertsPerFace,
 };
 
 static const vh::CommandLineOption options[] = {
-  { eHelp,              'h',  "help",       nullptr, nullptr, "Print this help message and exit."                               },
-  { eVersion,           'v',  "version",    nullptr, nullptr, "Print the application version and exit."                         },
-  { eNoMiniPLY,         '\0', "no-miniply", nullptr, nullptr, "Disable the \"minpbrt\" parser."                                 },
-  { eNoHapply,          '\0', "no-happly",  nullptr, nullptr, "Disable the \"happly\" parser."                                  },
-  { eNoTinyPLY,         '\0', "no-tinyply", nullptr, nullptr, "Disable the \"tinyply\" parser."                                 },
-  { eNoRPLY,            '\0', "no-rply",    nullptr, nullptr, "Disable the \"rply\" parser."                                    },
-  { eNoPrewarm,         '\0', "no-prewarm", nullptr, nullptr, "Don't pre-warm the disk cache before parsing (useful for very large scenes)." },
-  { eCSV,               '\0', "csv",        nullptr, nullptr, "Format output as CSV, for easy import into a spreadsheet."       },
-  { eQuiet,             'q',  "quiet",      nullptr, nullptr, "Don't print any intermediate text, just the final results."      },
-  { eOutFile,           'o',  "out-file",   "%s",    nullptr, "Write the results to a file rather than stdout."                 },
-  { eTransposed,        '\0', "transposed", nullptr, nullptr, "Parse all files with one parser before parsing all files with the next parser." },
-  { eSummary,           's',  "summary",    nullptr, nullptr, "Only show the total parsing times, not the times for each file." },
-  { eSpeedup,           '\0', "speedup",    nullptr, nullptr, "Include the relative speedup of each parser in the output."      },
-  { eSlowdown,          '\0', "slowdown",   nullptr, nullptr, "Include the relative slowdown of each parser in the output."     },
-  { vh::kUnknownOption, '\0', nullptr,      nullptr, nullptr, nullptr                                                           }
+  { eHelp,              'h',  "help",           nullptr, nullptr, "Print this help message and exit."                               },
+  { eVersion,           'v',  "version",        nullptr, nullptr, "Print the application version and exit."                         },
+  { eNoMiniPLY,         '\0', "no-miniply",     nullptr, nullptr, "Disable the \"minpbrt\" parser."                                 },
+  { eNoHapply,          '\0', "no-happly",      nullptr, nullptr, "Disable the \"happly\" parser."                                  },
+  { eNoTinyPLY,         '\0', "no-tinyply",     nullptr, nullptr, "Disable the \"tinyply\" parser."                                 },
+  { eNoRPLY,            '\0', "no-rply",        nullptr, nullptr, "Disable the \"rply\" parser."                                    },
+  { eNoPrewarm,         '\0', "no-prewarm",     nullptr, nullptr, "Don't pre-warm the disk cache before parsing (useful for very large scenes)." },
+  { eCSV,               '\0', "csv",            nullptr, nullptr, "Format output as CSV, for easy import into a spreadsheet."       },
+  { eQuiet,             'q',  "quiet",          nullptr, nullptr, "Don't print any intermediate text, just the final results."      },
+  { eOutFile,           'o',  "out-file",       "%s",    nullptr, "Write the results to a file rather than stdout."                 },
+  { eTransposed,        '\0', "transposed",     nullptr, nullptr, "Parse all files with one parser before parsing all files with the next parser." },
+  { eSummary,           's',  "summary",        nullptr, nullptr, "Only show the total parsing times, not the times for each file." },
+  { eSpeedup,           '\0', "speedup",        nullptr, nullptr, "Include the relative speedup of each parser in the output."      },
+  { eSlowdown,          '\0', "slowdown",       nullptr, nullptr, "Include the relative slowdown of each parser in the output."     },
+  { eVertsPerFace,      '\0', "verts-per-face", "%u",    nullptr, "Parse all files assuming that every face has exactly this many verts." },
+  { vh::kUnknownOption, '\0', nullptr,          nullptr, nullptr, nullptr                                                           }
 };
 
 
 namespace vh {
 
-  typedef bool (*ParserFunc)(const char* filename, double& parsingSecsOut);
+  // If the vertsPerFace parameter is non-zero, it means that all faces should
+  // be assumed to have exactly `vertsPerFace` vertices and any parsers that can
+  // take advantage of this should do so. If it's zero, it means the number of
+  // vertices per face is unknown and may possibly vary from face to face.
+  typedef bool (*ParserFunc)(const char* filename, uint32_t vertsPerFace, double& parsingSecsOut);
 
 
   static bool prewarm_parser(const char* filename);
-  static bool parse_with_miniply(const char* filename, double& parsingMSOut);
-  static bool parse_with_happly(const char* filename, double& parsingMSOut);
-  static bool parse_with_tinyply(const char* filename, double& parsingMSOut);
-  static bool parse_with_rply(const char* filename, double& parsingMSOut);
+  static bool parse_with_miniply(const char* filename, uint32_t vertsPerFace, double& parsingMSOut);
+  static bool parse_with_happly(const char* filename, uint32_t vertsPerFace, double& parsingMSOut);
+  static bool parse_with_tinyply(const char* filename, uint32_t vertsPerFace, double& parsingMSOut);
+  static bool parse_with_rply(const char* filename, uint32_t vertsPerFace, double& parsingMSOut);
 
 
   enum ParserID {
@@ -171,13 +177,22 @@ namespace vh {
   }
 
 
-  static bool parse_with_miniply(const char* filename, double& parsingMSOut)
+  static bool parse_with_miniply(const char* filename, uint32_t vertsPerFace, double& parsingMSOut)
   {
     Timer timer(true); // true --> autostart the timer.
 
     miniply::PLYReader reader(filename);
     if (!reader.valid()) {
       return false;
+    }
+
+    std::vector<uint32_t> listIdxs;
+    if (vertsPerFace != 0) {
+      miniply::PLYElement* facesElem = reader.get_element(reader.find_element(miniply::kPLYFaceElement));
+      if (facesElem != nullptr) {
+        listIdxs.resize(vertsPerFace);
+        facesElem->convert_list_to_fixed_size(facesElem->find_property("vertex_indices"), vertsPerFace, listIdxs.data());
+      }
     }
 
     PolyMesh* polymesh = new PolyMesh();
@@ -209,24 +224,37 @@ namespace vh {
         if (!reader.load_element()) {
           break;
         }
-        uint32_t propIdx;
-        if (!reader.find_indices(&propIdx)) {
-          break;
-        }
+        if (vertsPerFace != 0) {
+          polymesh->numFaces = reader.num_rows();
+          polymesh->faceStart = new uint32_t[polymesh->numFaces + 1];
+          for (uint32_t i = 0; i < polymesh->numFaces; i++) {
+            polymesh->faceStart[i] = i * vertsPerFace;
+          }
 
-        polymesh->numFaces = reader.num_rows();
-        polymesh->faceStart = new uint32_t[polymesh->numFaces + 1];
-        const uint32_t* faceCounts = reader.get_list_counts(propIdx);
-        uint32_t faceStart = 0;
-        for (uint32_t i = 0; i < polymesh->numFaces; i++) {
-          polymesh->faceStart[i] = faceStart;
-          faceStart += faceCounts[i];
+          polymesh->numIndices = polymesh->numFaces * vertsPerFace;
+          polymesh->indices = new int[polymesh->numIndices];
+          reader.extract_properties(listIdxs.data(), vertsPerFace, miniply::PLYPropertyType::Int, polymesh->indices);
         }
-        polymesh->faceStart[polymesh->numFaces] = faceStart;
+        else {
+          uint32_t propIdx;
+          if (!reader.find_indices(&propIdx)) {
+            break;
+          }
 
-        polymesh->numIndices = polymesh->faceStart[polymesh->numFaces];
-        polymesh->indices = new int[polymesh->numIndices];
-        reader.extract_list_property(propIdx, miniply::PLYPropertyType::Int, polymesh->indices);
+          polymesh->numFaces = reader.num_rows();
+          polymesh->faceStart = new uint32_t[polymesh->numFaces + 1];
+          const uint32_t* faceCounts = reader.get_list_counts(propIdx);
+          uint32_t faceStart = 0;
+          for (uint32_t i = 0; i < polymesh->numFaces; i++) {
+            polymesh->faceStart[i] = faceStart;
+            faceStart += faceCounts[i];
+          }
+          polymesh->faceStart[polymesh->numFaces] = faceStart;
+
+          polymesh->numIndices = polymesh->faceStart[polymesh->numFaces];
+          polymesh->indices = new int[polymesh->numIndices];
+          reader.extract_list_property(propIdx, miniply::PLYPropertyType::Int, polymesh->indices);
+        }
 
         gotFaces = true;
       }
@@ -246,7 +274,7 @@ namespace vh {
   }
 
 
-  static bool parse_with_happly(const char* filename, double& parsingMSOut)
+  static bool parse_with_happly(const char* filename, uint32_t /*vertsPerFace*/, double& parsingMSOut)
   {
     Timer timer(true); // true --> autostart the timer.
 
@@ -344,7 +372,7 @@ namespace vh {
   }
 
 
-  static bool parse_with_tinyply(const char* filename, double& parsingMSOut)
+  static bool parse_with_tinyply(const char* filename, uint32_t vertsPerFace, double& parsingMSOut)
   {
     Timer timer(true); // true --> autostart the timer.
 
@@ -396,7 +424,7 @@ namespace vh {
 
       // Providing a list size hint (the last argument) is a 2x performance improvement. If you have
       // arbitrary ply files, it is best to leave this 0.
-      faces = file.request_properties_from_element("face", { "vertex_indices" }, 0);
+      faces = file.request_properties_from_element("face", { "vertex_indices" }, vertsPerFace);
 
       file.read(ss);
 
@@ -448,7 +476,9 @@ namespace vh {
       polymesh->numFaces = static_cast<uint32_t>(faces->count);
       polymesh->faceStart = new uint32_t[polymesh->numFaces + 1];
       uint32_t faceStart = 0;
-      uint32_t vertsPerFace = faces->buffer.size_bytes() / (faces->count * tinyply::PropertyTable[faces->t].stride);
+      if (vertsPerFace == 0) {
+        vertsPerFace = faces->buffer.size_bytes() / (faces->count * tinyply::PropertyTable[faces->t].stride);
+      }
       for (uint32_t i = 0; i < polymesh->numFaces; i++) {
         polymesh->faceStart[i] = faceStart;
         faceStart = vertsPerFace;
@@ -536,7 +566,7 @@ namespace vh {
   }
 
 
-  static bool parse_with_rply(const char* filename, double& parsingMSOut)
+  static bool parse_with_rply(const char* filename, uint32_t vertsPerFace, double& parsingMSOut)
   {
     Timer timer(true); // true --> autostart the timer.
 
@@ -599,7 +629,12 @@ namespace vh {
 
     uint32_t numFaces = uint32_t(ply_set_read_cb(ply, "face", "vertex_indices", rply_face_cb, &builder, 0));
     builder.faceStart.reserve(numFaces + 1); // Reserve enough space for a polygon with 256 vertices, any larger will reallocate.
-    builder.meshIndices.reserve(numFaces * 6); // Reserve enough space to handle each face being a quad, just in case. Will grow if more space is needed.
+    if (vertsPerFace != 0) {
+      builder.meshIndices.reserve(numFaces * vertsPerFace);
+    }
+    else {
+      builder.meshIndices.reserve(numFaces * 6); // Reserve enough space to handle each face being a quad, just in case. Will grow if more space is needed.
+    }
     builder.faceStart.push_back(0);
 
     if (!ply_read(ply)) {
@@ -627,6 +662,7 @@ namespace vh {
   static void parse_all(const bool enabled[kNumParsers],
                         bool prewarm,
                         bool verbose,
+                        uint32_t vertsPerFace,
                         size_t n,
                         Result results[])
   {
@@ -643,7 +679,7 @@ namespace vh {
         if (!enabled[p]) {
           continue;
         }
-        results[i].ok[p] = kParsers[p](filename, results[i].msecs[p]);
+        results[i].ok[p] = kParsers[p](filename, vertsPerFace, results[i].msecs[p]);
       }
     }
   }
@@ -652,6 +688,7 @@ namespace vh {
   static void parse_transposed(const bool enabled[kNumParsers],
                                bool prewarm,
                                bool verbose,
+                               uint32_t vertsPerFace,
                                size_t n,
                                Result results[])
   {
@@ -675,7 +712,7 @@ namespace vh {
       }
       for (size_t i = 0; i < n; i++) {
         const char* filename = results[i].filename.c_str();
-        results[i].ok[p] = kParsers[p](filename, results[i].msecs[p]);
+        results[i].ok[p] = kParsers[p](filename, vertsPerFace, results[i].msecs[p]);
       }
     }
   }
@@ -900,6 +937,7 @@ int main(int argc, char** argv)
   bool summary = false;
   bool speedup = false;
   bool slowdown = false;
+  uint32_t vertsPerFace = 0; // 0 means "unknown and may vary from face to face"; any other value means every face has exactly that many verts.
   const char* outfile = nullptr;
 
   int argi = 1;
@@ -959,6 +997,10 @@ int main(int argc, char** argv)
         slowdown = true;
         break;
 
+      case eVertsPerFace:
+        parse_option(argc, argv, argi, &options[match.id], &vertsPerFace);
+        break;
+
       // Handle other options here
 
       default:
@@ -1012,10 +1054,10 @@ int main(int argc, char** argv)
   delete[] filenameBuffer;
 
   if (transposed) {
-    parse_transposed(enabled, prewarm, verbose, results.size(), results.data());
+    parse_transposed(enabled, prewarm, verbose, vertsPerFace, results.size(), results.data());
   }
   else {
-    parse_all(enabled, prewarm, verbose, results.size(), results.data());
+    parse_all(enabled, prewarm, verbose, vertsPerFace, results.size(), results.data());
   }
   if (verbose) {
     printf("Parsing complete!\n\n");
