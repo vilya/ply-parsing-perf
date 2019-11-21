@@ -8,12 +8,15 @@ results. It produces a report about how long each parser took. The performance
 report can be formatted as Markdown or CSV.
 
 The parsers currently being tested are:
-* [miniply](https://github.com/vilya/miniply)
-* [Happly](https://github.com/nmwsharp/happly)
-* [tinyply](https://github.com/ddiakopoulos/tinyply)
-* [RPly](http://w3.impa.br/~diego/software/rply/)
 
-See RESULTS.md for one (very large) set of results from running this tool.
+* [Happly](https://github.com/nmwsharp/happly)
+* [miniply](https://github.com/vilya/miniply)
+* [msh_ply](https://github.com/mhalber/msh)
+* [RPly](http://w3.impa.br/~diego/software/rply/)
+* [tinyply](https://github.com/ddiakopoulos/tinyply)
+
+Detailed results from running this tool can be found in the results-\* 
+subdirectories. If you just want the high-level overview, see below.
 
 *Disclaimer:* The author of this tool is also the author of the `miniply`
 library. Every effort has been made to keep the performance comparisons as

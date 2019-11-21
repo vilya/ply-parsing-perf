@@ -725,25 +725,28 @@ namespace vh {
     };
     const char* vertex_indices_names[] = { "vertex_indices" };
 
-    msh_ply_desc_t pos_desc;
-    pos_desc.element_name = "vertex";
+    char vertex_name[10] = "vertex";
+    char face_name[10] = "face";
+
+    msh_ply_desc_t pos_desc = {};
+    pos_desc.element_name = vertex_name;
     pos_desc.property_names = pos_names;
     pos_desc.num_properties = 3;
     pos_desc.data_type = MSH_PLY_FLOAT;
 
-    msh_ply_desc_t normal_desc;
-    normal_desc.element_name = "vertex";
+    msh_ply_desc_t normal_desc = {};
+    normal_desc.element_name = vertex_name;
     normal_desc.property_names = normal_names;
     normal_desc.num_properties = 3;
     normal_desc.data_type = MSH_PLY_FLOAT;
 
-    msh_ply_desc_t uv_desc;
-    uv_desc.element_name = "vertex";
+    msh_ply_desc_t uv_desc = {};
+    uv_desc.element_name = vertex_name;
     normal_desc.num_properties = 2;
     normal_desc.data_type = MSH_PLY_FLOAT;
 
-    msh_ply_desc_t face_desc;
-    face_desc.element_name = "face";
+    msh_ply_desc_t face_desc = {};
+    face_desc.element_name = face_name;
     face_desc.property_names = vertex_indices_names;
     face_desc.num_properties = 1;
     face_desc.data_type = MSH_PLY_INT32;
@@ -797,16 +800,6 @@ namespace vh {
         ok = false;
       }
 
-//      fprintf(stderr, "Face counts after reading with msh_ply:\n");
-//      if (faceCounts == nullptr) {
-//        fprintf(stderr, "  (null)\n");
-//      }
-//      else {
-//        for (size_t i = 0; i < numFaces; i++) {
-//          fprintf(stderr, "  %u\n", faceCounts[i]);
-//        }
-//      }
-
       if ((numNormals != 0 && numNormals != numVerts) ||
           (numUVs != 0 && numUVs != numVerts)) {
         ok = false;
@@ -834,8 +827,12 @@ namespace vh {
           polymesh->numIndices = polymesh->numFaces * vertsPerFace;
         }
       }
+
+      msh_ply_close(pf);
     }
-    msh_ply_close(pf);
+    else {
+      ok = false;
+    }
 
     timer.stop();
     parsingMSOut = timer.elapsedMS();
