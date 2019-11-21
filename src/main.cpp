@@ -412,6 +412,12 @@ namespace vh {
   }
 
 
+  // This is based closely on the example code from
+  // https://github.com/ddiakopoulos/tinyply/blob/master/source/example.cpp
+  //
+  // I added handling for extracting face data, with pointers from tinyply's
+  // author (thanks Dimitri!). I also added some extra attributes to be
+  // extracted if they're present in the input file (normals, tex coords).
   static bool parse_with_tinyply(const char* filename, uint32_t vertsPerFace, double& parsingMSOut)
   {
     Timer timer(true); // true --> autostart the timer.
@@ -711,6 +717,16 @@ namespace vh {
   }
 
 
+  // The code for this function is lightly modified copy of Maciej Halber's mshply_test.c
+  // from the ply_io_benchmark project:
+  //
+  // https://github.com/mhalber/ply_io_benchmark/blob/master/mshply_test.c
+  //
+  // I've modified it to make it populate the PolyMesh structure we're using
+  // for these tests, which is slightly more complex than the one used in the
+  // original code. In particular, I've added parsing of normals & tex coords
+  // if they're present in the file; and I've adapted it to use msh_ply's built-in
+  // support for variable-length faces when necessary.
   static bool parse_with_msh_ply(const char* filename, uint32_t vertsPerFace, double& parsingMSOut)
   {
     Timer timer(true); // true --> autostart the timer
