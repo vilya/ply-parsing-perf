@@ -12,6 +12,15 @@
 #include <string>
 #include <thread>
 
+
+// Needed for msh_std.h
+#include <cassert>
+#define MSH_STD_IMPLEMENTATION
+#define MSH_PLY_IMPLEMENTATION
+#include <msh_std.h>
+#include <msh_ply.h>
+
+
 //
 // Constants
 //
@@ -27,6 +36,7 @@ enum CmdLineOption {
   eNoHapply,
   eNoTinyPLY,
   eNoRPLY,
+  eNoMSHPly,
   eNoPrewarm,
   eCSV,
   eQuiet,
@@ -45,6 +55,7 @@ static const vh::CommandLineOption options[] = {
   { eNoHapply,          '\0', "no-happly",      nullptr, nullptr, "Disable the \"happly\" parser."                                  },
   { eNoTinyPLY,         '\0', "no-tinyply",     nullptr, nullptr, "Disable the \"tinyply\" parser."                                 },
   { eNoRPLY,            '\0', "no-rply",        nullptr, nullptr, "Disable the \"rply\" parser."                                    },
+  { eNoMSHPly,          '\0', "no-mshply",      nullptr, nullptr, "Disable the \"msh_ply\" parser."                                 },
   { eNoPrewarm,         '\0', "no-prewarm",     nullptr, nullptr, "Don't pre-warm the disk cache before parsing (useful for very large scenes)." },
   { eCSV,               '\0', "csv",            nullptr, nullptr, "Format output as CSV, for easy import into a spreadsheet."       },
   { eQuiet,             'q',  "quiet",          nullptr, nullptr, "Don't print any intermediate text, just the final results."      },
@@ -64,7 +75,7 @@ namespace vh {
   // be assumed to have exactly `vertsPerFace` vertices and any parsers that can
   // take advantage of this should do so. If it's zero, it means the number of
   // vertices per face is unknown and may possibly vary from face to face.
-  typedef bool (*ParserFunc)(const char* filename, uint32_t vertsPerFace, double& parsingSecsOut);
+  typedef bool (*ParserFunc)(const char* filename, uint32_t vertsPerFace, double& parsingMSOut);
 
 
   static bool prewarm_parser(const char* filename);
@@ -72,6 +83,7 @@ namespace vh {
   static bool parse_with_happly(const char* filename, uint32_t vertsPerFace, double& parsingMSOut);
   static bool parse_with_tinyply(const char* filename, uint32_t vertsPerFace, double& parsingMSOut);
   static bool parse_with_rply(const char* filename, uint32_t vertsPerFace, double& parsingMSOut);
+  static bool parse_with_msh_ply(const char* filename, uint32_t vertsPerFace, double& parsingMSOut);
 
 
   enum ParserID {
@@ -79,6 +91,7 @@ namespace vh {
     eHapply,
     eTinyPLY,
     eRPLY,
+    eMSHPly,
   };
 
 
@@ -87,6 +100,7 @@ namespace vh {
     "happly",
     "tinyply",
     "rply",
+    "msh_ply",
   };
 
 
@@ -95,6 +109,7 @@ namespace vh {
     parse_with_happly,
     parse_with_tinyply,
     parse_with_rply,
+    parse_with_msh_ply,
   };
   static const uint32_t kNumParsers = sizeof(kParsers) / sizeof(kParsers[0]);
 
@@ -696,6 +711,164 @@ namespace vh {
   }
 
 
+  static bool parse_with_msh_ply(const char* filename, uint32_t vertsPerFace, double& parsingMSOut)
+  {
+    Timer timer(true); // true --> autostart the timer
+
+    const char* pos_names[] = { "x", "y", "z" };
+    const char* normal_names[] = { "x", "y", "z" };
+    const char* uv_names[4][2] = {
+      { "u", "v" },
+      { "s", "t" },
+      { "texture_u", "texture_v" },
+      { "texture_s", "texture_t" },
+    };
+    const char* vertex_indices_names[] = { "vertex_indices" };
+
+    msh_ply_desc_t pos_desc;
+    pos_desc.element_name = "vertex";
+    pos_desc.property_names = pos_names;
+    pos_desc.num_properties = 3;
+    pos_desc.data_type = MSH_PLY_FLOAT;
+
+    msh_ply_desc_t normal_desc;
+    normal_desc.element_name = "vertex";
+    normal_desc.property_names = normal_names;
+    normal_desc.num_properties = 3;
+    normal_desc.data_type = MSH_PLY_FLOAT;
+
+    msh_ply_desc_t uv_desc;
+    uv_desc.element_name = "vertex";
+    normal_desc.num_properties = 2;
+    normal_desc.data_type = MSH_PLY_FLOAT;
+
+    msh_ply_desc_t face_desc;
+    face_desc.element_name = "face";
+    face_desc.property_names = vertex_indices_names;
+    face_desc.num_properties = 1;
+    face_desc.data_type = MSH_PLY_INT32;
+    face_desc.list_type = MSH_PLY_UINT32;
+
+    PolyMesh* polymesh = new PolyMesh();
+    bool ok = true;
+    uint32_t* faceCounts = nullptr;
+
+    size_t numVerts = 0, numNormals = 0, numUVs = 0, numFaces = 0;
+
+    pos_desc.data       = &polymesh->pos;
+    pos_desc.data_count = &numVerts;
+
+    normal_desc.data = &polymesh->normal;
+    normal_desc.data_count = &numNormals;
+
+    uv_desc.data       = &polymesh->uv;
+    uv_desc.data_count = &numUVs;
+
+    face_desc.data       = &polymesh->indices;
+    face_desc.data_count = &numFaces;
+    if (vertsPerFace == 0) {
+      face_desc.list_data = &faceCounts;
+    }
+    else {
+      face_desc.list_size_hint = uint8_t(vertsPerFace);
+    }
+
+    msh_ply_t* pf = msh_ply_open( filename, "rb");
+    if (pf) {
+      // x,y,z -> position
+      msh_ply_add_descriptor( pf, &pos_desc );
+
+      // optional nx,ny,nz -> normal
+      if (msh_ply_has_properties(pf, &normal_desc)) {
+        msh_ply_add_descriptor( pf, &pos_desc );
+      }
+
+      // optional texcoords. We try 4 sets of names, picking the first that is present (if any).
+      for (int i = 0; i < 4; i++) {
+        uv_desc.property_names = uv_names[i];
+        if (msh_ply_has_properties(pf, &uv_desc)) {
+          msh_ply_add_descriptor(pf, &uv_desc);
+          break;
+        }
+      }
+
+      msh_ply_add_descriptor( pf, &face_desc );
+      if (msh_ply_read(pf) != MSH_PLY_NO_ERR) {
+        ok = false;
+      }
+
+//      fprintf(stderr, "Face counts after reading with msh_ply:\n");
+//      if (faceCounts == nullptr) {
+//        fprintf(stderr, "  (null)\n");
+//      }
+//      else {
+//        for (size_t i = 0; i < numFaces; i++) {
+//          fprintf(stderr, "  %u\n", faceCounts[i]);
+//        }
+//      }
+
+      if ((numNormals != 0 && numNormals != numVerts) ||
+          (numUVs != 0 && numUVs != numVerts)) {
+        ok = false;
+      }
+
+      // By this point msh_ply has filled in our vertex and index data, but we
+      // faceCounts, numVerts, numIndices and numFaces are not yet filled in.
+      if (ok) {
+        polymesh->numVerts = static_cast<uint32_t>(numVerts);
+        polymesh->numFaces = static_cast<uint32_t>(numFaces);
+        polymesh->faceStart = new uint32_t[polymesh->numFaces + 1];
+        if (vertsPerFace == 0) {
+          uint32_t faceStart = 0;
+          for (uint32_t i = 0; i < polymesh->numFaces; i++) {
+            polymesh->faceStart[i] = faceStart;
+            faceStart += faceCounts[i];
+          }
+          polymesh->faceStart[polymesh->numFaces] = faceStart;
+          polymesh->numIndices = polymesh->faceStart[polymesh->numFaces];
+        }
+        else {
+          for (uint32_t i = 0; i <= polymesh->numFaces; i++) {
+            polymesh->faceStart[i] = vertsPerFace * i;
+          }
+          polymesh->numIndices = polymesh->numFaces * vertsPerFace;
+        }
+      }
+    }
+    msh_ply_close(pf);
+
+    timer.stop();
+    parsingMSOut = timer.elapsedMS();
+
+    // We have to free the members of PolyMesh here before the destructor runs.
+    // `msh_ply` will have used malloc rather than new so the destructor's
+    // calls to delete[] won't work.
+    if (polymesh->pos != nullptr) {
+      free(polymesh->pos);
+      polymesh->pos = nullptr;
+    }
+    if (polymesh->normal != nullptr) {
+      free(polymesh->normal);
+      polymesh->normal = nullptr;
+    }
+    if (polymesh->uv != nullptr) {
+      free(polymesh->uv);
+      polymesh->uv = nullptr;
+    }
+    if (polymesh->indices != nullptr) {
+      free(polymesh->indices);
+      polymesh->indices = nullptr;
+    }
+    if (faceCounts != nullptr) {
+      free(faceCounts);
+      faceCounts = nullptr;
+    }
+    delete polymesh;
+
+    return ok;
+  }
+
+
   static void parse_all(const bool enabled[kNumParsers],
                         bool prewarm,
                         bool verbose,
@@ -1017,6 +1190,10 @@ int main(int argc, char** argv)
 
       case eNoRPLY:
         enabled[eRPLY] = false;
+        break;
+
+      case eNoMSHPly:
+        enabled[eMSHPly] = false;
         break;
 
       case eNoPrewarm:
