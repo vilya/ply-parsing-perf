@@ -441,21 +441,23 @@ namespace vh {
         }
       }
 
+      // tinyply assumes that every face has the same number of vertices. As
+      // long as that holds, the code here will load the mesh correctly. If it
+      // doesn't then we'll most likely get a very messed-up mesh.
+      // Unfortunately there's no way we can handle that case any better.
       polymesh->numFaces = static_cast<uint32_t>(faces->count);
       polymesh->faceStart = new uint32_t[polymesh->numFaces + 1];
       uint32_t faceStart = 0;
+      uint32_t vertsPerFace = faces->buffer.size_bytes() / (faces->count * tinyply::PropertyTable[faces->t].stride);
       for (uint32_t i = 0; i < polymesh->numFaces; i++) {
         polymesh->faceStart[i] = faceStart;
-        // TODO: increase `faceStart` by the number of vertices on this face.
+        faceStart = vertsPerFace;
       }
       polymesh->faceStart[polymesh->numFaces] = faceStart;
 
-      polymesh->numIndices = polymesh->numFaces;
+      polymesh->numIndices = polymesh->numFaces * vertsPerFace;
       polymesh->indices = new int[polymesh->numIndices];
-      for (uint32_t i = 0; i < polymesh->numFaces; i++) {
-        // TODO: figure out how to extract the vertex indices for the current face from one of tinyply's buffers.
-        polymesh->indices[i] = 0;
-      }
+      std::memcpy(polymesh->indices, faces->buffer.get(), faces->buffer.size_bytes());
     }
     catch (const std::exception& /*e*/) {
       delete polymesh;
