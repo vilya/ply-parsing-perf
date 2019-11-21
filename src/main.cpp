@@ -35,7 +35,7 @@ enum CmdLineOption {
   eSummary,
   eSpeedup,
   eSlowdown,
-  eVertsPerFace,
+  ePrecognition,
 };
 
 static const vh::CommandLineOption options[] = {
@@ -53,7 +53,7 @@ static const vh::CommandLineOption options[] = {
   { eSummary,           's',  "summary",        nullptr, nullptr, "Only show the total parsing times, not the times for each file." },
   { eSpeedup,           '\0', "speedup",        nullptr, nullptr, "Include the relative speedup of each parser in the output."      },
   { eSlowdown,          '\0', "slowdown",       nullptr, nullptr, "Include the relative slowdown of each parser in the output."     },
-  { eVertsPerFace,      '\0', "verts-per-face", "%u",    nullptr, "Parse all files assuming that every face has exactly this many verts." },
+  { ePrecognition,      '\0', "precognition",   nullptr, nullptr, "Run a pre-pass to determine how many vertices there are per face in each input file and pass that info to the parsers." },
   { vh::kUnknownOption, '\0', nullptr,          nullptr, nullptr, nullptr                                                           }
 };
 
@@ -174,6 +174,31 @@ namespace vh {
     delete[] buffer;
 
     return true;
+  }
+
+
+  static uint32_t verts_per_face(const char* filename)
+  {
+    uint32_t idx;
+    miniply::PLYReader reader(filename);
+    while (reader.valid() && reader.has_element()) {
+      if (reader.element_is(miniply::kPLYFaceElement) && reader.load_element() && reader.find_indices(&idx)) {
+        const uint32_t numFaces = reader.num_rows();
+        const uint32_t* counts = reader.get_list_counts(idx);
+        if (numFaces == 0 || counts == nullptr) {
+          return 0;
+        }
+        uint32_t expectedVerts = counts[0];
+        for (uint32_t i = 0; i < numFaces; i++) {
+          if (counts[i] != expectedVerts) {
+            return 0;
+          }
+        }
+        return expectedVerts;
+      }
+      reader.next_element();
+    }
+    return 0;
   }
 
 
@@ -388,38 +413,42 @@ namespace vh {
 
       // Tinyply treats parsed data as untyped byte buffers. See below for examples.
       std::shared_ptr<tinyply::PlyData> vertices, normals, faces, uvs;
-      bool hasNormals = false, hasUVs = false;
 
       vertices = file.request_properties_from_element("vertex", { "x", "y", "z" });
 
+      bool hasNormals = false;
       try {
         normals = file.request_properties_from_element("vertex", { "nx", "ny", "nz" });
         hasNormals = true;
       }
       catch (const std::exception& /*e*/) {}
 
+      bool hasUVs = false;
       try {
         uvs = file.request_properties_from_element("vertex", { "u", "v" });
         hasUVs = true;
       }
-      catch (const std::exception& /*e*/) {
+      catch (const std::exception& /*e*/) {}
+      if (!hasUVs) {
         try {
           uvs = file.request_properties_from_element("vertex", { "s", "t" });
           hasUVs = true;
         }
-        catch (const std::exception& /*e*/) {
-          try {
-            uvs = file.request_properties_from_element("vertex", { "texture_u", "texture_v" });
-            hasUVs = true;
-          }
-          catch (const std::exception& /*e*/) {
-            try {
-              uvs = file.request_properties_from_element("vertex", { "texture_s", "texture_t" });
-              hasUVs = true;
-            }
-            catch (const std::exception& /*e*/) {}
-          }
+        catch (const std::exception& /*e*/) {}
+      }
+      if (!hasUVs) {
+        try {
+          uvs = file.request_properties_from_element("vertex", { "texture_u", "texture_v" });
+          hasUVs = true;
         }
+        catch (const std::exception& /*e*/) {}
+      }
+      if (!hasUVs) {
+        try {
+          uvs = file.request_properties_from_element("vertex", { "texture_s", "texture_t" });
+          hasUVs = true;
+        }
+        catch (const std::exception& /*e*/) {}
       }
 
       // Providing a list size hint (the last argument) is a 2x performance improvement. If you have
@@ -477,7 +506,15 @@ namespace vh {
       polymesh->faceStart = new uint32_t[polymesh->numFaces + 1];
       uint32_t faceStart = 0;
       if (vertsPerFace == 0) {
-        vertsPerFace = faces->buffer.size_bytes() / (faces->count * tinyply::PropertyTable[faces->t].stride);
+        uint32_t divisor = faces->count * tinyply::PropertyTable[faces->t].stride;
+        if (faces->buffer.size_bytes() % divisor != 0) {
+          // This indicates that not all faces had the same number of vertices,
+          // which tinyply can't handle. Note that this won't catch *all* cases,
+          // it's still possible for the buffer size to be an exact multiple of
+          // our divisor when some faces have different numbers of vertices.
+          throw std::exception();
+        }
+        vertsPerFace = faces->buffer.size_bytes() / divisor;
       }
       for (uint32_t i = 0; i < polymesh->numFaces; i++) {
         polymesh->faceStart[i] = faceStart;
@@ -662,7 +699,7 @@ namespace vh {
   static void parse_all(const bool enabled[kNumParsers],
                         bool prewarm,
                         bool verbose,
-                        uint32_t vertsPerFace,
+                        bool precognition,
                         size_t n,
                         Result results[])
   {
@@ -675,6 +712,9 @@ namespace vh {
       if (prewarm) {
         prewarm_parser(filename);
       }
+
+      uint32_t vertsPerFace = precognition ? verts_per_face(filename) : 0;
+
       for (uint32_t p = 0; p < kNumParsers; p++) {
         if (!enabled[p]) {
           continue;
@@ -688,7 +728,7 @@ namespace vh {
   static void parse_transposed(const bool enabled[kNumParsers],
                                bool prewarm,
                                bool verbose,
-                               uint32_t vertsPerFace,
+                               bool precognition,
                                size_t n,
                                Result results[])
   {
@@ -702,6 +742,16 @@ namespace vh {
       }
     }
 
+    std::vector<uint32_t> vertsPerFace(n, 0u);
+    if (precognition) {
+      if (verbose) {
+        printf("Getting verts-per-face counts for %llu files\n", uint64_t(n));
+      }
+      for (size_t i = 0; i < n; i++) {
+        vertsPerFace[i] = verts_per_face(results[i].filename.c_str());
+      }
+    }
+
     for (uint32_t p = 0; p < kNumParsers; p++) {
       if (!enabled[p]) {
         continue;
@@ -712,7 +762,7 @@ namespace vh {
       }
       for (size_t i = 0; i < n; i++) {
         const char* filename = results[i].filename.c_str();
-        results[i].ok[p] = kParsers[p](filename, vertsPerFace, results[i].msecs[p]);
+        results[i].ok[p] = kParsers[p](filename, vertsPerFace[i], results[i].msecs[p]);
       }
     }
   }
@@ -937,7 +987,7 @@ int main(int argc, char** argv)
   bool summary = false;
   bool speedup = false;
   bool slowdown = false;
-  uint32_t vertsPerFace = 0; // 0 means "unknown and may vary from face to face"; any other value means every face has exactly that many verts.
+  bool precognition = false; // when true, run a prepass to determine a verts-per-face value to use for the file.
   const char* outfile = nullptr;
 
   int argi = 1;
@@ -963,6 +1013,10 @@ int main(int argc, char** argv)
 
       case eNoTinyPLY:
         enabled[eTinyPLY] = false;
+        break;
+
+      case eNoRPLY:
+        enabled[eRPLY] = false;
         break;
 
       case eNoPrewarm:
@@ -997,8 +1051,8 @@ int main(int argc, char** argv)
         slowdown = true;
         break;
 
-      case eVertsPerFace:
-        parse_option(argc, argv, argi, &options[match.id], &vertsPerFace);
+      case ePrecognition:
+        precognition = true;
         break;
 
       // Handle other options here
@@ -1054,10 +1108,10 @@ int main(int argc, char** argv)
   delete[] filenameBuffer;
 
   if (transposed) {
-    parse_transposed(enabled, prewarm, verbose, vertsPerFace, results.size(), results.data());
+    parse_transposed(enabled, prewarm, verbose, precognition, results.size(), results.data());
   }
   else {
-    parse_all(enabled, prewarm, verbose, vertsPerFace, results.size(), results.data());
+    parse_all(enabled, prewarm, verbose, precognition, results.size(), results.data());
   }
   if (verbose) {
     printf("Parsing complete!\n\n");
