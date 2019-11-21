@@ -33,22 +33,26 @@ enum CmdLineOption {
   eOutFile,
   eTransposed,
   eSummary,
+  eSpeedup,
+  eSlowdown,
 };
 
 static const vh::CommandLineOption options[] = {
-  { eHelp,              'h',  "help",       nullptr, nullptr, "Print this help message and exit."                          },
-  { eVersion,           'v',  "version",    nullptr, nullptr, "Print the application version and exit."                    },
-  { eNoMiniPLY,         '\0', "no-miniply", nullptr, nullptr, "Disable the \"minpbrt\" parser."                            },
-  { eNoHapply,          '\0', "no-happly",  nullptr, nullptr, "Disable the \"happly\" parser."                             },
-  { eNoTinyPLY,         '\0', "no-tinyply", nullptr, nullptr, "Disable the \"tinyply\" parser."                            },
-  { eNoRPLY,            '\0', "no-rply",    nullptr, nullptr, "Disable the \"rply\" parser."                               },
+  { eHelp,              'h',  "help",       nullptr, nullptr, "Print this help message and exit."                               },
+  { eVersion,           'v',  "version",    nullptr, nullptr, "Print the application version and exit."                         },
+  { eNoMiniPLY,         '\0', "no-miniply", nullptr, nullptr, "Disable the \"minpbrt\" parser."                                 },
+  { eNoHapply,          '\0', "no-happly",  nullptr, nullptr, "Disable the \"happly\" parser."                                  },
+  { eNoTinyPLY,         '\0', "no-tinyply", nullptr, nullptr, "Disable the \"tinyply\" parser."                                 },
+  { eNoRPLY,            '\0', "no-rply",    nullptr, nullptr, "Disable the \"rply\" parser."                                    },
   { eNoPrewarm,         '\0', "no-prewarm", nullptr, nullptr, "Don't pre-warm the disk cache before parsing (useful for very large scenes)." },
-  { eCSV,               '\0', "csv",        nullptr, nullptr, "Format output as CSV, for easy import into a spreadsheet."  },
-  { eQuiet,             'q',  "quiet",      nullptr, nullptr, "Don't print any intermediate text, just the final results." },
-  { eOutFile,           'o',  "out-file",   "%s",    nullptr, "Write the results to a file rather than stdout."            },
+  { eCSV,               '\0', "csv",        nullptr, nullptr, "Format output as CSV, for easy import into a spreadsheet."       },
+  { eQuiet,             'q',  "quiet",      nullptr, nullptr, "Don't print any intermediate text, just the final results."      },
+  { eOutFile,           'o',  "out-file",   "%s",    nullptr, "Write the results to a file rather than stdout."                 },
   { eTransposed,        '\0', "transposed", nullptr, nullptr, "Parse all files with one parser before parsing all files with the next parser." },
   { eSummary,           's',  "summary",    nullptr, nullptr, "Only show the total parsing times, not the times for each file." },
-  { vh::kUnknownOption, '\0', nullptr,      nullptr, nullptr, nullptr                                                      }
+  { eSpeedup,           '\0', "speedup",    nullptr, nullptr, "Include the relative speedup of each parser in the output."      },
+  { eSlowdown,          '\0', "slowdown",   nullptr, nullptr, "Include the relative slowdown of each parser in the output."     },
+  { vh::kUnknownOption, '\0', nullptr,      nullptr, nullptr, nullptr                                                           }
 };
 
 
@@ -701,26 +705,33 @@ namespace vh {
   }
 
 
-  static void print_header(FILE* out, int filenameWidth, const bool enabled[kNumParsers], uint32_t baseline)
-  {
-    bool showSpeedup = baseline < kNumParsers;
+  struct OutputOptions {
+    int filenameWidth;
+    uint32_t baseline;
+    bool showSpeedup;
+    bool showSlowdown;
+  };
 
-    fprintf(out, "| %-*s ", filenameWidth, "Filename");
+
+  static void print_header(FILE* out, const bool enabled[kNumParsers], const OutputOptions& options)
+  {
+    fprintf(out, "| %-*s ", options.filenameWidth, "Filename");
     for (uint32_t i = 0; i < kNumParsers; i++) {
       if (!enabled[i]) {
         continue;
       }
-      if (showSpeedup && i != baseline) {
-        fprintf(out, "| %12s (Slowdown) ", kParserNames[i]);
+      fprintf(out, "| %12s ", kParserNames[i]);
+      if (options.showSpeedup) {
+        fprintf(out, "%10s ", "(Speedup)");
       }
-      else {
-        fprintf(out, "| %12s ", kParserNames[i]);
+      if (options.showSlowdown) {
+        fprintf(out, "%10s ", "(Slowdown)");
       }
     }
     fprintf(out, "|\n");
 
     fprintf(out, "| :");
-    for (int i = 0; i < filenameWidth - 1; i++) {
+    for (int i = 0; i < options.filenameWidth - 1; i++) {
       fputc('-', out);
     }
     fputc(' ', out);
@@ -729,47 +740,61 @@ namespace vh {
       if (!enabled[i]) {
         continue;
       }
-      if (showSpeedup && i != baseline) {
-        fprintf(out, "| ----------------------: ");
+      fprintf(out, "| -----------");
+      if (options.showSpeedup) {
+        fprintf(out, "-----------");
       }
-      else {
-        fprintf(out, "| -----------: ");
+      if (options.showSlowdown) {
+        fprintf(out, "-----------");
       }
+      fprintf(out, ": ");
     }
 
     fprintf(out, "|\n");
   }
 
 
-  static void print_result(FILE* out, const Result& result, int filenameWidth, const bool enabled[kNumParsers], uint32_t baseline)
+  static void print_result(FILE* out,
+                           const Result& result,
+                           const bool enabled[kNumParsers],
+                           const OutputOptions& options)
   {
-    bool showSlowdown = baseline < kNumParsers;
+    fprintf(out, "| %-*s ", options.filenameWidth, result.filename.c_str());
 
-    fprintf(out, "| %-*s ", filenameWidth, result.filename.c_str());
+    char tmp[64];
 
     for (uint32_t i = 0; i < kNumParsers; i++) {
       if (!enabled[i]) {
         continue;
       }
-      if (showSlowdown && i != baseline) {
-        if (result.ok[i] && result.ok[baseline]) {
-          double slowdown = result.msecs[i] / result.msecs[baseline];
-          fprintf(out, "| %12.3lf (%7.2lfx) ", result.msecs[i], slowdown);
-        }
-        else if (result.ok[i] && !result.ok[baseline]) {
-          fprintf(out, "| %12.3lf            ", result.msecs[i]);
-        }
-        else {
-          fprintf(out, "| %12s            ", "failed");
-        }
+      fprintf(out, "| ");
+      if (result.ok[i]) {
+        fprintf(out, "%12.3lf ", result.msecs[i]);
       }
       else {
-        if (result.ok[i]) {
-          fprintf(out, "| %12.3lf ", result.msecs[i]);
+        fprintf(out, "%12s ", "failed");
+      }
+
+      if (options.showSpeedup) {
+        if (result.ok[i] && result.ok[options.baseline]) {
+          double speedup = result.msecs[options.baseline] / result.msecs[i];
+          snprintf(tmp, sizeof(tmp), "(%.2lfx)", speedup);
         }
         else {
-          fprintf(out, "| %12s ", "failed");
+          tmp[0] = '\0';
         }
+        fprintf(out, "%10s ", tmp);
+      }
+
+      if (options.showSlowdown) {
+        if (result.ok[i] && result.ok[options.baseline]) {
+          double slowdown = result.msecs[i] / result.msecs[options.baseline];
+          snprintf(tmp, sizeof(tmp), "(%.2lfx)", slowdown);
+        }
+        else {
+          tmp[0] = '\0';
+        }
+        fprintf(out, "%10s ", tmp);
       }
     }
 
@@ -777,21 +802,36 @@ namespace vh {
   }
 
 
-  static void print_results(FILE* out, const std::vector<Result> results, const bool enabled[kNumParsers])
+  static void print_results(FILE* out,
+                            const std::vector<Result> results,
+                            const bool enabled[kNumParsers],
+                            bool showSpeedup,
+                            bool showSlowdown)
   {
-    int filenameWidth = 0;
+    OutputOptions outputOptions;
+
+    outputOptions.filenameWidth = 0;
     for (const Result& result : results) {
       int newWidth = static_cast<int>(result.filename.size());
-      if (newWidth > filenameWidth) {
-        filenameWidth = newWidth;
+      if (newWidth > outputOptions.filenameWidth) {
+        outputOptions.filenameWidth = newWidth;
       }
     }
 
-    uint32_t baseline = multiple_parsers_enabled(enabled) ? first_enabled(enabled) : kNumParsers;
+    if (multiple_parsers_enabled(enabled)) {
+      outputOptions.baseline = first_enabled(enabled);
+      outputOptions.showSpeedup = showSpeedup;
+      outputOptions.showSlowdown = showSlowdown;
+    }
+    else {
+      outputOptions.baseline = kNumParsers;
+      outputOptions.showSpeedup = false;
+      outputOptions.showSlowdown = false;
+    }
 
-    print_header(out, filenameWidth, enabled, baseline);
+    print_header(out, enabled, outputOptions);
     for (const Result& result : results) {
-      print_result(out, result, filenameWidth, enabled, baseline);
+      print_result(out, result, enabled, outputOptions);
     }
   }
 
@@ -856,6 +896,8 @@ int main(int argc, char** argv)
   bool verbose = true;
   bool transposed = false;
   bool summary = false;
+  bool speedup = false;
+  bool slowdown = false;
   const char* outfile = nullptr;
 
   int argi = 1;
@@ -905,6 +947,15 @@ int main(int argc, char** argv)
 
       case eSummary:
         summary = true;
+        break;
+
+      case eSpeedup:
+        speedup = true;
+        break;
+
+      case eSlowdown:
+        slowdown = true;
+        break;
 
       // Handle other options here
 
@@ -998,7 +1049,7 @@ int main(int argc, char** argv)
     print_results_as_csv(out, results, enabled);
   }
   else {
-    print_results(out, results, enabled);
+    print_results(out, results, enabled, speedup, slowdown);
   }
 
   if (out != stdout) {
