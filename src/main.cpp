@@ -15,6 +15,9 @@
 
 // Needed for msh_std.h
 #include <cassert>
+#include <cmath>
+#include <cstdlib>
+#include <cstring>
 #define MSH_STD_IMPLEMENTATION
 #define MSH_PLY_IMPLEMENTATION
 #include <msh_std.h>
@@ -527,7 +530,7 @@ namespace vh {
       polymesh->faceStart = new uint32_t[polymesh->numFaces + 1];
       uint32_t faceStart = 0;
       if (vertsPerFace == 0) {
-        uint32_t divisor = faces->count * tinyply::PropertyTable[faces->t].stride;
+        uint32_t divisor = uint32_t(faces->count) * uint32_t(tinyply::PropertyTable[faces->t].stride);
         if (faces->buffer.size_bytes() % divisor != 0) {
           // This indicates that not all faces had the same number of vertices,
           // which tinyply can't handle. Note that this won't catch *all* cases,
@@ -535,7 +538,7 @@ namespace vh {
           // our divisor when some faces have different numbers of vertices.
           throw std::exception();
         }
-        vertsPerFace = faces->buffer.size_bytes() / divisor;
+        vertsPerFace = uint32_t(faces->buffer.size_bytes() / divisor);
       }
       for (uint32_t i = 0; i < polymesh->numFaces; i++) {
         polymesh->faceStart[i] = faceStart;
@@ -581,7 +584,7 @@ namespace vh {
   static int rply_vertex_pos_cb(p_ply_argument arg)
   {
     RPLYTriMeshBuilder* builder = nullptr;
-    ply_get_argument_user_data(arg, reinterpret_cast<void**>(&builder), NULL);
+    ply_get_argument_user_data(arg, reinterpret_cast<void**>(&builder), nullptr);
     *builder->pos = static_cast<float>(ply_get_argument_value(arg));
     builder->pos++;
     return 1;
@@ -591,7 +594,7 @@ namespace vh {
   static int rply_vertex_normal_cb(p_ply_argument arg)
   {
     RPLYTriMeshBuilder* builder = nullptr;
-    ply_get_argument_user_data(arg, reinterpret_cast<void**>(&builder), NULL);
+    ply_get_argument_user_data(arg, reinterpret_cast<void**>(&builder), nullptr);
     *builder->normal = static_cast<float>(ply_get_argument_value(arg));
     builder->normal++;
     return 1;
@@ -601,7 +604,7 @@ namespace vh {
   static int rply_vertex_uv_cb(p_ply_argument arg)
   {
     RPLYTriMeshBuilder* builder = nullptr;
-    ply_get_argument_user_data(arg, reinterpret_cast<void**>(&builder), NULL);
+    ply_get_argument_user_data(arg, reinterpret_cast<void**>(&builder), nullptr);
     *builder->uv = static_cast<float>(ply_get_argument_value(arg));
     builder->uv++;
     return 1;
@@ -611,7 +614,7 @@ namespace vh {
   static int rply_face_cb(p_ply_argument arg)
   {
     RPLYTriMeshBuilder* builder = nullptr;
-    ply_get_argument_user_data(arg, reinterpret_cast<void**>(&builder), NULL);
+    ply_get_argument_user_data(arg, reinterpret_cast<void**>(&builder), nullptr);
 
     long length, valueIndex;
     ply_get_argument_property(arg, nullptr, &length, &valueIndex);
@@ -920,7 +923,7 @@ namespace vh {
   {
     if (prewarm) {
       if (verbose) {
-        printf("Prewarming %llu files\n", uint64_t(n));
+        printf("Prewarming %u files\n", uint32_t(n));
       }
       for (size_t i = 0; i < n; i++) {
         const char* filename = results[i].filename.c_str();
@@ -931,7 +934,7 @@ namespace vh {
     std::vector<uint32_t> vertsPerFace(n, 0u);
     if (precognition) {
       if (verbose) {
-        printf("Getting verts-per-face counts for %llu files\n", uint64_t(n));
+        printf("Getting verts-per-face counts for %u files\n", uint32_t(n));
       }
       for (size_t i = 0; i < n; i++) {
         vertsPerFace[i] = verts_per_face(results[i].filename.c_str());
@@ -943,7 +946,7 @@ namespace vh {
         continue;
       }
       if (verbose) {
-        printf("Parsing %llu files with %s\n", uint64_t(n), kParserNames[p]);
+        printf("Parsing %u files with %s\n", uint32_t(n), kParserNames[p]);
         fflush(stdout);
       }
       for (size_t i = 0; i < n; i++) {

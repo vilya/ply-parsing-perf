@@ -1,14 +1,6 @@
-cmake_minimum_required(VERSION 3.15)
-cmake_policy(SET CMP0091 NEW)
+cmake_minimum_required(VERSION 3.5)
 
 project(ply-parsing-perf)
-
-set(CMAKE_CXX_STANDARD 11)
-if(MSVC)
-  set(CMAKE_CXX_FLAGS "/EHsc")
-#  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
-endif(MSVC)
 
 
 # Include root for our own sources
