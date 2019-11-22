@@ -101,6 +101,29 @@ Parser Notes
   they were correct. Hopefuly this will be pretty rare though...!
 
 
+"Precognition"
+--------------
+
+Some parsers (`miniply`, `tinyply` and `msh_ply`) are able to take advantage
+of the fact that all faces in a PLY file have the same number of vertices to
+parse much more efficiently. 
+
+In general, because we're parsing an unknown set of files, we cannot know in
+advance how many vertices each face in a given file will have. But there are
+many possible use cases where you will have this knowledge, so we want to be
+able to benchmark the parsing in that case too - and each parser a chance to
+really shine!
+
+Precognition mode simulates having that knowledge by pre-parsing each input
+file and inspecting its face list to determine how many vertices each face has
+(and whether they're all the same, or a mix of different sizes).
+
+Add "--precognition" on the command line to enable precognition mode.
+
+I called it precognition because it's kind of like letting the parsers see
+into the future in a limited way. :-)
+
+
 Results - macOS
 ---------------
 
@@ -130,9 +153,21 @@ Results - windows
 -----------------
 
 * Times are in milliseconds and are for parsing all files in the collection.
-* The machine used for these timings was a late-2015 Windows 10 laptop with SSD and 16 GB of RAM.
+* The machine used for these timings was a late-2015 Windows 10 laptop with an SSD and 16 GB of RAM.
 
 Precognition off:
 
+| Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
+| :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
+| pbrt-v3-scenes    |    8929 |     6475.720    (1.00x) |    44174.730    (6.82x) |    57096.736    (8.82x) |    21309.687    (3.29x) |    11089.668    (1.71x) |
+| benedikt-bitterli |    3097 |      951.522    (1.00x) |     5843.121    (6.14x) |     7969.029    (8.38x) |     3168.412    (3.33x) |     1789.941    (1.88x) |
+| Stanford3DScans   |      19 |     4265.996    (1.00x) |    33755.121    (7.91x) |    27523.052    (6.45x) |     9265.776    (2.17x) |     8746.675    (2.05x) |
+
 
 Precognition on:
+
+| Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
+| :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
+| pbrt-v3-scenes    |    8929 |     3895.514    (1.00x) |    44229.690   (11.35x) |    30956.799    (7.95x) |    21781.691    (5.59x) |     4545.359    (1.17x) |
+| benedikt-bitterli |    3097 |      538.755    (1.00x) |     5790.756   (10.75x) |     4202.027    (7.80x) |     3192.133    (5.93x) |      648.820    (1.20x) |
+| Stanford3DScans   |      19 |     2243.040    (1.00x) |    34014.823   (15.16x) |    17020.522    (7.59x) |     9780.114    (4.36x) |     4351.478    (1.94x) |
