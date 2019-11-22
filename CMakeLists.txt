@@ -26,6 +26,9 @@ include_directories(3rdparty/tinyply/source)
 # rply
 include_directories(3rdparty/rply-1.1.4)
 
+# msh_ply
+include_directories(3rdparty/msh)
+
 # pieces
 include_directories(3rdparty/pieces)
 
