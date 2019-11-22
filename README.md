@@ -7,6 +7,61 @@ libraries and populates a simply polygon mesh data structure using their
 results. It produces a report about how long each parser took. The performance
 report can be formatted as Markdown or CSV.
 
+
+The task
+--------
+
+We measure performance by using each of the parsers to load a PLY file and
+populate a simply polygon mesh structure. We do this for every file the user
+specifies on the command line. 
+
+The mesh structure that we're populating is:
+
+```cpp
+  struct PolyMesh {
+    // Per-vertex data
+    float* pos     = nullptr; // has 3*numVerts elements.
+    float* normal  = nullptr; // if non-null, has 3 * numVerts elements.
+    float* uv      = nullptr; // if non-null, has 2 * numVerts elements.
+    uint32_t numVerts   = 0;
+
+    // Per-index data
+    int* indices   = nullptr;
+    uint32_t numIndices = 0; // number of indices = sum of the number of indices for each face
+
+    // Per-face data
+    uint32_t* faceStart = nullptr; // Entry 'i' is the index at which the indices for this face start. It has `numFaces + 1` entries.
+    uint32_t numFaces = 0;
+
+    ~PolyMesh() {
+      delete[] pos;
+      delete[] normal;
+      delete[] uv;
+      delete[] indices;
+      delete[] faceStart;
+    }
+  };
+```
+
+Each parser must populate the `pos`, `indices` and `faceStart` arrays. The
+`normal` and `uv` arrays must be populated too if the input file contains data
+for them.
+
+This task was chosen because it's quite similar (though simplified) to the use
+case that I originally needed a PLY parser for: loading a scene which uses
+(potentially lots of) PLY files to store all the geometry. 
+
+Note that we're loading a polygon mesh rather than a triangle mesh because my
+test data set contains quite a few PLY files that are quad meshes - or a mix
+of triangles and quads - and I didn't want the overhead of a polygon
+triangulation routine in the benchmark. Most ply libraries don't ship their
+own polygon triangulation code (miniply being the exception) so I'd just be
+benchmarking that same code against itself over and over.
+
+
+The parsers
+-----------
+
 The parsers currently being tested are:
 
 * [Happly](https://github.com/nmwsharp/happly)
@@ -18,7 +73,7 @@ The parsers currently being tested are:
 Detailed results from running this tool can be found in the results-\* 
 subdirectories. If you just want the high-level overview, see below.
 
-*Disclaimer:* The author of this tool is also the author of the `miniply`
+*Disclaimer:* The author of this benchmark is also the author of the `miniply`
 library. Every effort has been made to keep the performance comparisons as
 fair as possible, but the usage of miniply may be better optimised simply due
 to better familiarity. Any improvements to the code will be gratefully
@@ -49,9 +104,9 @@ Parser Notes
 Results - macOS
 ---------------
 
-* Times are in milliseconds, for parsing all files in the collection.
+* Times are in milliseconds and are for parsing all files in the collection.
 * The machine used for these timings was a 2015 MacBook Pro.
-
+* These results are from before the `msh_ply` parser was added.
 
 Precognition off:
 
@@ -71,4 +126,13 @@ Precognition on:
 | Stanford3DScans   |      19 |     1798.322    (1.00x) |    20462.569   (11.38x) |     8717.252    (4.85x) |     7356.816    (4.09x) |
 
 
+Results - windows
+-----------------
 
+* Times are in milliseconds and are for parsing all files in the collection.
+* The machine used for these timings was a late-2015 Windows 10 laptop with SSD and 16 GB of RAM.
+
+Precognition off:
+
+
+Precognition on:
