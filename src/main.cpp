@@ -18,6 +18,10 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#ifdef __APPLE__
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 #define MSH_STD_IMPLEMENTATION
 #define MSH_PLY_IMPLEMENTATION
 #include <msh_std.h>

@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 project(ply-parsing-perf)
+set(CMAKE_CXX_STANDARD 11)
 
 
 # Include root for our own sources
