@@ -129,7 +129,6 @@ Results - macOS
 
 * Times are in milliseconds and are for parsing all files in the collection.
 * The machine used for these timings was a 2015 MacBook Pro.
-* These results are from before the `msh_ply` parser was added.
 
 Precognition off:
 
@@ -154,6 +153,7 @@ Results - windows
 
 * Times are in milliseconds and are for parsing all files in the collection.
 * The machine used for these timings was a late-2015 Windows 10 laptop with an SSD and 16 GB of RAM.
+* TODO: the msh_ply times are from a buggy version of the testing code where it was skipping the normal and UV columns, need to rerun these.
 
 Precognition off:
 
