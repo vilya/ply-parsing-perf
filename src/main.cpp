@@ -277,6 +277,7 @@ namespace vh {
           for (uint32_t i = 0; i < polymesh->numFaces; i++) {
             polymesh->faceStart[i] = i * vertsPerFace;
           }
+          polymesh->faceStart[polymesh->numFaces] = polymesh->numFaces * vertsPerFace;
 
           polymesh->numIndices = polymesh->numFaces * vertsPerFace;
           polymesh->indices = new int[polymesh->numIndices];
@@ -739,7 +740,7 @@ namespace vh {
     Timer timer(true); // true --> autostart the timer
 
     const char* pos_names[] = { "x", "y", "z" };
-    const char* normal_names[] = { "x", "y", "z" };
+    const char* normal_names[] = { "nx", "ny", "nz" };
     const char* uv_names[4][2] = {
       { "u", "v" },
       { "s", "t" },
@@ -765,8 +766,8 @@ namespace vh {
 
     msh_ply_desc_t uv_desc = {};
     uv_desc.element_name = vertex_name;
-    normal_desc.num_properties = 2;
-    normal_desc.data_type = MSH_PLY_FLOAT;
+    uv_desc.num_properties = 2;
+    uv_desc.data_type = MSH_PLY_FLOAT;
 
     msh_ply_desc_t face_desc = {};
     face_desc.element_name = face_name;
@@ -801,12 +802,16 @@ namespace vh {
 
     msh_ply_t* pf = msh_ply_open( filename, "rb");
     if (pf) {
+      if (msh_ply_parse_header(pf) != MSH_PLY_NO_ERR) {
+        return false;
+      }
+
       // x,y,z -> position
       msh_ply_add_descriptor( pf, &pos_desc );
 
       // optional nx,ny,nz -> normal
       if (msh_ply_has_properties(pf, &normal_desc)) {
-        msh_ply_add_descriptor( pf, &pos_desc );
+        msh_ply_add_descriptor( pf, &normal_desc );
       }
 
       // optional texcoords. We try 4 sets of names, picking the first that is present (if any).
@@ -819,6 +824,7 @@ namespace vh {
       }
 
       msh_ply_add_descriptor( pf, &face_desc );
+
       if (msh_ply_read(pf) != MSH_PLY_NO_ERR) {
         ok = false;
       }
