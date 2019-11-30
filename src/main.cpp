@@ -1211,6 +1211,16 @@ namespace vh {
     return strcmp(filename + i, ext) == 0;
   }
 
+
+  static const char* get_current_dir(char* buf, size_t bufSize)
+  {
+#ifdef _WIN32
+    return _getcwd(buf, bufSize);
+#else
+    return getcwd(buf, bufSize);
+#endif
+  }
+
 } // namespace vh
 
 
@@ -1361,7 +1371,7 @@ int main(int argc, char** argv)
   }
 
   // Get the current directory, so we can print it out as part of our results.
-  std::string currentDir = _getcwd(filenameBuffer, kFilenameBufferLen);
+  std::string currentDir = get_current_dir(filenameBuffer, kFilenameBufferLen);
 
   delete[] filenameBuffer;
 
