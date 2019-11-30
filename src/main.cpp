@@ -1090,6 +1090,31 @@ namespace vh {
   }
 
 
+  static void print_current_directory(FILE* out, const char* currentDir)
+  {
+    fprintf(out, "* Current Directory: %s\n", currentDir);
+  }
+
+
+  static void print_command_line(FILE* out,
+                                 const std::vector<std::string>& commandLineArgs,
+                                 const char* currentDir)
+  {
+    if (commandLineArgs.empty()) {
+      fprintf(out, "* Command Line: (empty)\n");
+    }
+    else {
+      fprintf(out, "* Command Line: `%s", commandLineArgs[0].c_str());
+      for (size_t i = 1, endI = commandLineArgs.size(); i < endI; i++) {
+        fprintf(out, " %s", commandLineArgs[i].c_str());
+      }
+      fprintf(out, "`\n");
+    }
+    fprintf(out, "* Current Directory: `%s`\n", currentDir);
+    fprintf(out, "\n");
+  }
+
+
   static void print_results(FILE* out,
                             const std::vector<Result> results,
                             const bool enabled[kNumParsers],
@@ -1124,8 +1149,27 @@ namespace vh {
   }
 
 
-  static void print_results_as_csv(FILE* out, const std::vector<Result> results, const bool enabled[kNumParsers])
+  static void print_command_line_as_csv(FILE* out,
+                                        const std::vector<std::string>& commandLineArgs,
+                                        const char* currentDir)
   {
+    if (commandLineArgs.empty()) {
+      fprintf(out, "\"Command Line\", \"<empty>\"\n");
+    }
+    else {
+      fprintf(out, "\"Command Line\", \"%s", commandLineArgs[0].c_str());
+      for (size_t i = 1, endI = commandLineArgs.size(); i < endI; i++) {
+        fprintf(out, " %s", commandLineArgs[i].c_str());
+      }
+      fprintf(out, "\"\n");
+    }
+    fprintf(out, "\"Current Directory\", \"%s\"\n", currentDir);
+    fprintf(out, "\n");
+  }
+
+
+  static void print_results_as_csv(FILE* out, const std::vector<Result>& results, const bool enabled[kNumParsers])
+  {    
     fprintf(out, "\"Filename\"");
     for (uint32_t i = 0; i < kNumParsers; i++) {
       if (enabled[i]) {
@@ -1172,6 +1216,13 @@ namespace vh {
 
 int main(int argc, char** argv)
 {
+  // Save a copy of the command line parameters so we can print them as part of the output
+  std::vector<std::string> commandLineArgs;
+  commandLineArgs.reserve(size_t(argc));
+  for (int i = 0; i < argc; i++) {
+    commandLineArgs.push_back(argv[i]);
+  }
+
   using namespace vh;
 
   bool enabled[kNumParsers];
@@ -1281,7 +1332,7 @@ int main(int argc, char** argv)
   // Process the files, building up a table of results. We don't just print the
   // results out as we go because pbrt-parser prints some intermediate output
   // which messes up our formatting.
-  const int kFilenameBufferLen = 16 * 1024 - 1;
+  const int kFilenameBufferLen = 32 * 1024 - 1;
   char* filenameBuffer = new char[kFilenameBufferLen + 1];
   filenameBuffer[kFilenameBufferLen] = '\0';
 
@@ -1308,6 +1359,10 @@ int main(int argc, char** argv)
       results.back().filename = argv[i];
     }
   }
+
+  // Get the current directory, so we can print it out as part of our results.
+  std::string currentDir = _getcwd(filenameBuffer, kFilenameBufferLen);
+
   delete[] filenameBuffer;
 
   if (transposed) {
@@ -1347,9 +1402,11 @@ int main(int argc, char** argv)
   }
 
   if (printAsCSV) {
+    print_command_line_as_csv(out, commandLineArgs, currentDir.c_str());
     print_results_as_csv(out, results, enabled);
   }
   else {
+    print_command_line(out, commandLineArgs, currentDir.c_str());
     print_results(out, results, enabled, speedup, slowdown);
   }
 
