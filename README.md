@@ -3,7 +3,7 @@ ply-parsing-perf: Performance comparisons of PLY parsers
 
 This project provides a command line app which parses [PLY
 files](https://pbrt.org/fileformat-v3.html) using several different parsing
-libraries and populates a simply polygon mesh data structure using their
+libraries and populates a simple polygon mesh data structure using their
 results. It produces a report about how long each parser took. The performance
 report can be formatted as Markdown or CSV.
 
@@ -12,7 +12,7 @@ The task
 --------
 
 We measure performance by using each of the parsers to load a PLY file and
-populate a simply polygon mesh structure. We do this for every file the user
+populate a simple polygon mesh structure. We do this for every file the user
 specifies on the command line. 
 
 The mesh structure that we're populating is:
@@ -62,7 +62,7 @@ benchmarking that same code against itself over and over.
 The parsers
 -----------
 
-The parsers currently being tested are:
+The parsers currently being tested, in alphabetical order:
 
 * [Happly](https://github.com/nmwsharp/happly)
 * [miniply](https://github.com/vilya/miniply)
@@ -70,8 +70,9 @@ The parsers currently being tested are:
 * [RPly](http://w3.impa.br/~diego/software/rply/)
 * [tinyply](https://github.com/ddiakopoulos/tinyply)
 
-Detailed results from running this tool can be found in the results-\* 
-subdirectories. If you just want the high-level overview, see below.
+Detailed results from running this tool on a few different computers can be 
+found in the results-\* subdirectories. If you just want the high-level overview,
+see below.
 
 *Disclaimer:* The author of this benchmark is also the author of the `miniply`
 library. Every effort has been made to keep the performance comparisons as
@@ -90,8 +91,9 @@ Parser Notes
   belonging to the same property will have the same number of entries. It will 
   not produce a correct mesh for any PLY files where this doesn't hold and may
   crash. We currently use a simple check to detect most of these cases and flag
-  the run as failed, but it is still possible for a mesh to pass this check
-  while it has varying numbers of vertices per face.
+  the run as failed, but the test isn't 100% accurate: it's unlikely but still 
+  possible for a mesh to pass the test while having varying numbers of vertices
+  per face.
 
 * The `RPly` code relies on the order of vertex properties being sensible. Any
   properties loaded as a group (e.g. "x", "y" and "z" for vertex position), 
@@ -104,21 +106,21 @@ Parser Notes
 "Precognition"
 --------------
 
-Some parsers (`miniply`, `tinyply` and `msh_ply`) are able to take advantage
-of the fact that all faces in a PLY file have the same number of vertices to
-parse much more efficiently. 
+When all faces in a PLY file have the same number of vertices, some parsers 
+(`miniply`, `tinyply` and `msh_ply`) can take advantage of that to parse the
+file much more efficiently.
 
 In general, because we're parsing an unknown set of files, we cannot know in
 advance how many vertices each face in a given file will have. But there are
-many possible use cases where you will have this knowledge, so we want to be
-able to benchmark the parsing in that case too - and each parser a chance to
-really shine!
+some important use cases where you might have this knowledge - for example 
+when the PLY files are being generated as an intermediate step in your data
+pipeline - so we want to be able to benchmark the parsing in that case too (and
+give each parser a chance to really shine).
 
 Precognition mode simulates having that knowledge by pre-parsing each input
-file and inspecting its face list to determine how many vertices each face has
-(and whether they're all the same, or a mix of different sizes).
+file and inspecting its face list.
 
-Add "--precognition" on the command line to enable precognition mode.
+Add `--precognition` on the command line to enable precognition mode.
 
 I called it precognition because it's kind of like letting the parsers see
 into the future in a limited way. :-)
