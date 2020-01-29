@@ -126,35 +126,115 @@ I called it precognition because it's kind of like letting the parsers see
 into the future in a limited way. :-)
 
 
+Normal vs. transposed parsing
+-----------------------------
+
+This is to do with the order in which we process the files with each parser.
+
+"Normal" mode is:
+```
+for each file:
+  for each parser:
+    parse file
+```
+
+whereas "Transposed" mode is:
+```
+for each parser:
+  for each file:
+    parse file
+```
+
+
+Prewarming
+----------
+
+The results in this benchmark are heavily influenced by whether the file is
+already in the OS's file cache or not. This means whichever parser runs first
+may be at a disadvantage because its input file may not yet be cached, but
+parsing it will mean that it is cached by the time we run all the other
+parsers.
+
+The benchmark works around this by warming up the file cache before running
+any of the parsers on a given input file. It streams the entire file into
+memory without attempting to do any parsing, just to make sure it's in the
+disk cache.
+
+You can disable this behaviour with the `--no-prewarm` option.
+
+This behaves slightly differently when parsing in transposed mode. In this
+case we run the prewarm step oncce for all files before running any of the
+parsers.
+
+
+"Slowdown"
+----------
+
+As well as reporting the raw parsing times, the benchmark can also display a
+"slowdown" factor. This is the ratio of the time for parser *n* to the time
+for parser *0*.
+
+Parser 0 is miniply by default, but you can disable this and any of the other
+parsers using command line options.
+
+
 Results - macOS
 ---------------
 
 * Times are in milliseconds and are for parsing all files in the collection.
 * The machine used for these timings was a 2015 MacBook Pro.
+* Prewarming is **on** for all of these runs.
 
-Precognition off:
+Precognition off, normal mode:
 
-| Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
-| :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
-| pbrt-v3-scenes    |    8929 |     5527.283    (1.00x) |    29300.581    (5.30x) |    30893.054    (5.59x) |    15757.236    (2.85x) |    12317.342    (2.23x) |
-| benedikt-bitterli |    3032 |      794.832    (1.00x) |     4070.013    (5.12x) |     4278.200    (5.38x) |     2338.866    (2.94x) |     1997.166    (2.51x) |
-| Stanford3DScans   |      19 |     2998.491    (1.00x) |    20169.027    (6.73x) |    13957.332    (4.65x) |     7071.629    (2.36x) |     8148.622    (2.72x) |
-
-
-Precognition on:
+`ply-parsing-perf --summary --quiet --slowdown allplyfiles.txt`
 
 | Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
 | :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
-| pbrt-v3-scenes    |    8929 |     4377.686    (1.00x) |    29521.873    (6.74x) |    16603.493    (3.79x) |    15892.624    (3.63x) |     4031.534    (0.92x) |
-| benedikt-bitterli |    3032 |      714.087    (1.00x) |     4123.226    (5.77x) |     2279.889    (3.19x) |     2365.777    (3.31x) |      555.664    (0.78x) |
-| Stanford3DScans   |      19 |     1649.384    (1.00x) |    20364.455   (12.35x) |     8643.306    (5.24x) |     7260.083    (4.40x) |     2785.606    (1.69x) |
+| pbrt-v3-scenes    |    8929 |     6494.546    (1.00x) |    31451.409    (4.84x) |    12200.113    (1.88x) |    16243.463    (2.50x) |    12747.547    (1.96x) |
+| benedikt-bitterli |    3032 |     1022.206    (1.00x) |     4466.136    (4.37x) |     1811.638    (1.77x) |     2400.264    (2.35x) |     2084.739    (2.04x) |
+| Stanford3DScans   |      19 |     3077.911    (1.00x) |    20386.191    (6.62x) |     2177.027    (0.71x) |     7060.756    (2.29x) |     8183.040    (2.66x) |
+
+Precognition off, transposed mode:
+
+`ply-parsing-perf --summary --quiet --slowdown --transposed allplyfiles.txt`
+
+| Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
+| :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
+| pbrt-v3-scenes    |    8929 |     5128.564    (1.00x) |    30142.863    (5.88x) |    11485.910    (2.24x) |    16078.137    (3.14x) |    15578.443    (3.04x) |
+| benedikt-bitterli |    3032 |      765.991    (1.00x) |     4204.140    (5.49x) |     1649.915    (2.15x) |     2331.773    (3.04x) |     2178.850    (2.84x) |
+| Stanford3DScans   |      19 |     3137.996    (1.00x) |    20646.780    (6.58x) |     2192.300    (0.70x) |     7125.185    (2.27x) |     8370.152    (2.67x) |
+
+
+Precognition on, normal mode:
+
+`ply-parsing-perf --summary --quiet --slowdown --precognition allplyfiles.txt`
+
+| Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
+| :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
+| pbrt-v3-scenes    |    8929 |     4802.874    (1.00x) |    31179.455    (6.49x) |    28000.275    (5.83x) |    16326.010    (3.40x) |     4269.351    (0.89x) |
+| benedikt-bitterli |    3032 |      819.693    (1.00x) |     4447.801    (5.43x) |     3885.596    (4.74x) |     2430.370    (2.96x) |      594.798    (0.73x) |
+| Stanford3DScans   |      19 |     1673.340    (1.00x) |    20410.081   (12.20x) |    10220.413    (6.11x) |     7291.008    (4.36x) |     2727.338    (1.63x) |
+
+
+Precognition off, transposed mode:
+
+`ply-parsing-perf --summary --quiet --slowdown --transposed --precognition allplyfiles.txt`
+
+| Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
+| :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
+| pbrt-v3-scenes    |    8929 |     4251.458    (1.00x) |    30337.103    (7.14x) |    27967.107    (6.58x) |    16300.324    (3.83x) |     5584.046    (1.31x) |
+| benedikt-bitterli |    3032 |      690.395    (1.00x) |     4170.307    (6.04x) |     3800.539    (5.50x) |     2363.405    (3.42x) |      720.316    (1.04x) |
+| Stanford3DScans   |      19 |     1722.956    (1.00x) |    20731.954   (12.03x) |    10431.094    (6.05x) |     7337.943    (4.26x) |     2866.534    (1.66x) |
 
 
 Results - windows
 -----------------
 
+* **These benchmarks are using slightly older versions of the parsers than the Mac results above. I will update them shortly.**
 * Times are in milliseconds and are for parsing all files in the collection.
 * The machine used for these timings was a late-2015 Windows 10 laptop with an SSD and 16 GB of RAM.
+
 
 Precognition off:
 
