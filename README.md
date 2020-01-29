@@ -185,6 +185,7 @@ Results - macOS
 * The machine used for these timings was a 2015 MacBook Pro.
 * Prewarming is **on** for all of these runs.
 
+
 Precognition off, normal mode:
 
 `ply-parsing-perf --summary --quiet --slowdown allplyfiles.txt`
@@ -194,6 +195,7 @@ Precognition off, normal mode:
 | pbrt-v3-scenes    |    8929 |     6494.546    (1.00x) |    31451.409    (4.84x) |    12200.113    (1.88x) |    16243.463    (2.50x) |    12747.547    (1.96x) |
 | benedikt-bitterli |    3032 |     1022.206    (1.00x) |     4466.136    (4.37x) |     1811.638    (1.77x) |     2400.264    (2.35x) |     2084.739    (2.04x) |
 | Stanford3DScans   |      19 |     3077.911    (1.00x) |    20386.191    (6.62x) |     2177.027    (0.71x) |     7060.756    (2.29x) |     8183.040    (2.66x) |
+
 
 Precognition off, transposed mode:
 
@@ -231,24 +233,99 @@ Precognition off, transposed mode:
 Results - windows
 -----------------
 
-* **These benchmarks are using slightly older versions of the parsers than the Mac results above. I will update them shortly.**
 * Times are in milliseconds and are for parsing all files in the collection.
 * The machine used for these timings was a late-2015 Windows 10 laptop with an SSD and 16 GB of RAM.
+* Prewarming is **on** for all of these runs.
 
 
-Precognition off:
+Precognition off, normal mode:
 
-| Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
-| :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
-| pbrt-v3-scenes    |    8929 |     5719.877    (1.00x) |    44081.469    (7.71x) |    58333.898   (10.20x) |    21663.593    (3.79x) |    12671.762    (2.22x) |
-| benedikt-bitterli |    3097 |      915.587    (1.00x) |     6144.806    (6.71x) |     8561.715    (9.35x) |     3340.567    (3.65x) |     2122.525    (2.32x) |
-| Stanford3DScans   |      19 |     3300.032    (1.00x) |    31609.277    (9.58x) |    26013.413    (7.88x) |     9089.971    (2.75x) |     8492.409    (2.57x) |
-
-
-Precognition on:
+`ply-parsing-perf --summary --quiet --slowdown allplyfiles.txt`
 
 | Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
 | :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
-| pbrt-v3-scenes    |    8929 |     4020.875    (1.00x) |    44024.581   (10.95x) |    31365.304    (7.80x) |    22002.424    (5.47x) |     5886.144    (1.46x) |
-| benedikt-bitterli |    3097 |      578.837    (1.00x) |     5857.236   (10.12x) |     4302.320    (7.43x) |     3254.457    (5.62x) |      850.638    (1.47x) |
-| Stanford3DScans   |      19 |     2302.757    (1.00x) |    31891.073   (13.85x) |    15518.126    (6.74x) |     9638.654    (4.19x) |     4013.256    (1.74x) |
+| pbrt-v3-scenes    |    8929 |     5859.284    (1.00x) |    42870.099    (7.32x) |    19615.391    (3.35x) |    20998.883    (3.58x) |    12308.984    (2.10x) |
+| benedikt-bitterli |    3032 |      959.554    (1.00x) |     5851.017    (6.10x) |     3019.552    (3.15x) |     3132.636    (3.26x) |     1962.630    (2.05x) |
+| Stanford3DScans   |      19 |     3180.575    (1.00x) |    31028.100    (9.76x) |     3762.546    (1.18x) |     8837.733    (2.78x) |     8118.433    (2.55x) |
+
+
+Precognition off, transposed mode:
+
+`ply-parsing-perf --summary --quiet --slowdown --transposed allplyfiles.txt`
+
+| Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
+| :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
+| pbrt-v3-scenes    |    8929 |     5331.383    (1.00x) |    42759.929    (8.02x) |    19260.840    (3.61x) |    20868.088    (3.91x) |    12517.266    (2.35x) |
+| benedikt-bitterli |    3032 |      765.058    (1.00x) |     5528.888    (7.23x) |     2821.783    (3.69x) |     3122.637    (4.08x) |     2033.217    (2.66x) |
+| Stanford3DScans   |      19 |     3183.265    (1.00x) |    30710.473    (9.65x) |     3945.928    (1.24x) |     8799.330    (2.76x) |     8088.875    (2.54x) |
+
+
+Precognition on, normal mode:
+
+`ply-parsing-perf --summary --quiet --slowdown --precognition allplyfiles.txt`
+
+| Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
+| :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
+| pbrt-v3-scenes    |    8929 |     3809.077    (1.00x) |    42443.840   (11.14x) |    52463.472   (13.77x) |    21078.821    (5.53x) |     5591.698    (1.47x) |
+| benedikt-bitterli |    3032 |      594.204    (1.00x) |     6312.924   (10.62x) |     8143.940   (13.71x) |     3427.564    (5.77x) |      888.515    (1.50x) |
+| Stanford3DScans   |      19 |     2203.132    (1.00x) |    30869.200   (14.01x) |    18160.157    (8.24x) |     9236.321    (4.19x) |     3871.445    (1.76x) |
+
+
+Precognition off, transposed mode:
+
+`ply-parsing-perf --summary --quiet --slowdown --transposed --precognition allplyfiles.txt`
+
+| Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
+| :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
+| pbrt-v3-scenes    |    8929 |     3819.788    (1.00x) |    42954.578   (11.25x) |    52471.757   (13.74x) |    21307.067    (5.58x) |     6055.684    (1.59x) |
+| benedikt-bitterli |    3032 |      495.983    (1.00x) |     5672.085   (11.44x) |     7293.072   (14.70x) |     3172.696    (6.40x) |      915.860    (1.85x) |
+| Stanford3DScans   |      19 |     2210.758    (1.00x) |    31019.028   (14.03x) |    18103.653    (8.19x) |     9222.461    (4.17x) |     3835.744    (1.74x) |
+
+
+Lines of code
+-------------
+
+This is how many lines of code it takes to call each of the parsers in
+ply-parsing-perf's `main.cpp`. This is the number of lines between the opening
+and closing brace of each of the `parse_with_foo` functions, plus (in the case
+of rply) the line count for any additional supporting functions & data types. 
+
+This is a very rough measure. It includes blank lines, comments, and
+punctuation-only lines. It also includes some code specific to this particular
+benchmark, such as handling precognition mode 
+
+So take it with a pinch of salt. :-)
+
+| Parser  | # lines |
+| :------ | ------: |
+| miniply |      93 |
+| happly  |      93 |
+| tinyply |     140 |
+| rply    |     139 |
+| msh_ply |     155 |
+
+
+Points of interest
+------------------
+
+* The fastest parser overall (for this workload) is **miniply** with
+  **msh_ply** a fairly close second.
+
+* Both **happly** and **tinyply** are a lot slower on Windows than on macOS. I
+  think this is largely due to differences between Microsoft's standard library
+  implementation and Clang's: both parsers make heavy use of iostreams and 
+  Microsoft's implementation of this in particular is quite slow.
+
+* In terms of shortest calling code, **happly** and **miniply** are equal
+  best, but the way you use each of them is very different. With **happly** we
+  load the entire file into memory then copy the data into our own structure.
+  With **miniply** we load enough info to preallocate our data structure then
+  have the parser populate it for us. **happly** is probably easier to get 
+  started with, but **miniply** is a lot faster and has a much lower memory 
+  overhead.
+
+* Both **rply** and **msh_ply** are written in C. The other parsers are all 
+  written in C++.
+
+* **miniply** lacks support for writing PLY files. The other libraries all 
+  support this.
