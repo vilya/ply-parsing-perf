@@ -1394,6 +1394,10 @@ int main(int argc, char** argv)
   }
   for (const Result& result : results) {
     for (uint32_t p = 0; p < kNumParsers; p++) {
+      if (!result.ok[p]) {
+        overall.ok[p] = false;
+        continue;
+      }
       overall.msecs[p] += result.msecs[p];
     }
   }
