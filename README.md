@@ -233,7 +233,6 @@ Precognition off, transposed mode:
 Results - windows
 -----------------
 
-* **These results are invalid. I've discovered a bug in the benchmark code which meant that parsing failures were not being reported. I'll update them as soon as possible.**
 * Times are in milliseconds and are for parsing all files in the collection.
 * The machine used for these timings was a late-2015 Windows 10 laptop with an SSD and 16 GB of RAM.
 * Prewarming is **on** for all of these runs.
@@ -245,9 +244,9 @@ Precognition off, normal mode:
 
 | Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
 | :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
-| pbrt-v3-scenes    |    8929 |     5859.284    (1.00x) |    42870.099    (7.32x) |    19615.391    (3.35x) |    20998.883    (3.58x) |    12308.984    (2.10x) |
-| benedikt-bitterli |    3032 |      959.554    (1.00x) |     5851.017    (6.10x) |     3019.552    (3.15x) |     3132.636    (3.26x) |     1962.630    (2.05x) |
-| Stanford3DScans   |      19 |     3180.575    (1.00x) |    31028.100    (9.76x) |     3762.546    (1.18x) |     8837.733    (2.78x) |     8118.433    (2.55x) |
+| pbrt-v3-scenes    |    8929 |     6254.108    (1.00x) |    49161.552    (7.86x) |       failed            |    23538.715    (3.76x) |       failed            |
+| benedikt-bitterli |    3032 |      936.030    (1.00x) |     5823.176    (6.22x) |       failed            |     3135.074    (3.35x) |     1984.123    (2.12x) |
+| Stanford3DScans   |      19 |     3221.321    (1.00x) |    30667.753    (9.52x) |       failed            |     8748.680    (2.72x) |       failed            |
 
 
 Precognition off, transposed mode:
@@ -256,9 +255,9 @@ Precognition off, transposed mode:
 
 | Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
 | :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
-| pbrt-v3-scenes    |    8929 |     5331.383    (1.00x) |    42759.929    (8.02x) |    19260.840    (3.61x) |    20868.088    (3.91x) |    12517.266    (2.35x) |
-| benedikt-bitterli |    3032 |      765.058    (1.00x) |     5528.888    (7.23x) |     2821.783    (3.69x) |     3122.637    (4.08x) |     2033.217    (2.66x) |
-| Stanford3DScans   |      19 |     3183.265    (1.00x) |    30710.473    (9.65x) |     3945.928    (1.24x) |     8799.330    (2.76x) |     8088.875    (2.54x) |
+| pbrt-v3-scenes    |    8929 |     5664.282    (1.00x) |    42994.899    (7.59x) |       failed            |    20814.662    (3.67x) |       failed            |
+| benedikt-bitterli |    3032 |     1100.449    (1.00x) |     6834.284    (6.21x) |       failed            |     3589.032    (3.26x) |     2659.700    (2.42x) |
+| Stanford3DScans   |      19 |     4457.512    (1.00x) |    42897.231    (9.62x) |       failed            |    12313.650    (2.76x) |       failed            |
 
 
 Precognition on, normal mode:
@@ -267,20 +266,20 @@ Precognition on, normal mode:
 
 | Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
 | :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
-| pbrt-v3-scenes    |    8929 |     3809.077    (1.00x) |    42443.840   (11.14x) |    52463.472   (13.77x) |    21078.821    (5.53x) |     5591.698    (1.47x) |
-| benedikt-bitterli |    3032 |      594.204    (1.00x) |     6312.924   (10.62x) |     8143.940   (13.71x) |     3427.564    (5.77x) |      888.515    (1.50x) |
-| Stanford3DScans   |      19 |     2203.132    (1.00x) |    30869.200   (14.01x) |    18160.157    (8.24x) |     9236.321    (4.19x) |     3871.445    (1.76x) |
+| pbrt-v3-scenes    |    8929 |     3855.697    (1.00x) |    42609.674   (11.05x) |       failed            |    21162.436    (5.49x) |     5588.838    (1.45x) |
+| benedikt-bitterli |    3032 |      582.787    (1.00x) |     5957.406   (10.22x) |     7462.759   (12.81x) |     3195.353    (5.48x) |      829.318    (1.42x) |
+| Stanford3DScans   |      19 |     2225.618    (1.00x) |    30817.768   (13.85x) |    18274.670    (8.21x) |     9246.333    (4.15x) |     3828.436    (1.72x) |
 
 
-Precognition off, transposed mode:
+Precognition on, transposed mode:
 
 `ply-parsing-perf --summary --quiet --slowdown --transposed --precognition allplyfiles.txt`
 
 | Collection        | # files |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
 | :---------------- | ------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
-| pbrt-v3-scenes    |    8929 |     3819.788    (1.00x) |    42954.578   (11.25x) |    52471.757   (13.74x) |    21307.067    (5.58x) |     6055.684    (1.59x) |
-| benedikt-bitterli |    3032 |      495.983    (1.00x) |     5672.085   (11.44x) |     7293.072   (14.70x) |     3172.696    (6.40x) |      915.860    (1.85x) |
-| Stanford3DScans   |      19 |     2210.758    (1.00x) |    31019.028   (14.03x) |    18103.653    (8.19x) |     9222.461    (4.17x) |     3835.744    (1.74x) |
+| pbrt-v3-scenes    |    8929 |     4119.678    (1.00x) |    43254.123   (10.50x) |       failed            |    21596.381    (5.24x) |     6125.734    (1.49x) |
+| benedikt-bitterli |    3032 |      495.838    (1.00x) |     5704.487   (11.50x) |     7352.396   (14.83x) |     3173.690    (6.40x) |      903.588    (1.82x) |
+| Stanford3DScans   |      19 |     2243.364    (1.00x) |    30821.248   (13.74x) |    18205.596    (8.12x) |     9188.890    (4.10x) |     3823.178    (1.70x) |
 
 
 Lines of code
