@@ -286,5 +286,9 @@ Points of interest
 * Both **rply** and **msh_ply** are written in C. The other parsers are all 
   written in C++.
 
+* **rply** requires the most complicated calling code because it requires you
+  to provide callback functions and (in this case) a supporting struct. All of
+  the others can be written as a single self-contained function.
+
 * **miniply** lacks support for writing PLY files. The other libraries all 
   support this.
