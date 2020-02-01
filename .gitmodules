@@ -10,3 +10,6 @@
 [submodule "3rdparty/pieces"]
 	path = 3rdparty/pieces
 	url = git@github.com:vilya/pieces.git
+[submodule "3rdparty/msh"]
+	path = 3rdparty/msh
+	url = https://github.com/mhalber/msh.git
