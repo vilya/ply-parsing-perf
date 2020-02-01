@@ -1,25 +1,25 @@
-* Command Line: `/Users/vilya/Code/ply-parsing-perf/build-release/ply-parsing-perf --slowdown --quiet --precognition allplyfiles.txt -o /Users/vilya/Code/ply-parsing-perf/results-macos/Stanford3DScans--precog.md`
+* Command Line: `/Users/vilya/Code/ply-parsing-perf/build-release/ply-parsing-perf --transposed --slowdown --quiet --precognition allplyfiles.txt -o /Users/vilya/Code/ply-parsing-perf/results-macos/Stanford3DScans--precog.md`
 * Current Directory: `/Users/vilya/Models/Stanford3DScans`
 
 | Filename                                    |      miniply (Slowdown) |       happly (Slowdown) |      tinyply (Slowdown) |         rply (Slowdown) |      msh_ply (Slowdown) |
 | :------------------------------------------ | ----------------------: | ----------------------: | ----------------------: | ----------------------: | ----------------------: |
-| ./armadillo/Armadillo.ply                   |        8.715    (1.00x) |       83.965    (9.64x) |       49.170    (5.64x) |       41.692    (4.78x) |        9.041    (1.04x) |
-| ./bunny/reconstruction/bun_zipper.ply       |        9.177    (1.00x) |      259.066   (28.23x) |      121.239   (13.21x) |       32.979    (3.59x) |       30.724    (3.35x) |
-| ./bunny/reconstruction/bun_zipper_res2.ply  |        2.327    (1.00x) |       59.017   (25.36x) |       26.390   (11.34x) |        7.470    (3.21x) |        6.388    (2.75x) |
-| ./bunny/reconstruction/bun_zipper_res3.ply  |        1.090    (1.00x) |       17.001   (15.60x) |        6.125    (5.62x) |        1.871    (1.72x) |        1.592    (1.46x) |
-| ./bunny/reconstruction/bun_zipper_res4.ply  |        0.221    (1.00x) |        4.517   (20.40x) |        1.823    (8.23x) |        0.535    (2.42x) |        0.428    (1.93x) |
-| ./dragon_recon/dragon_vrip.ply              |       95.491    (1.00x) |     2733.569   (28.63x) |     1339.521   (14.03x) |      349.132    (3.66x) |      321.313    (3.36x) |
-| ./dragon_recon/dragon_vrip_res2.ply         |       21.392    (1.00x) |      606.433   (28.35x) |      310.803   (14.53x) |       79.138    (3.70x) |       73.499    (3.44x) |
-| ./dragon_recon/dragon_vrip_res3.ply         |        4.749    (1.00x) |      140.835   (29.65x) |       72.757   (15.32x) |       18.263    (3.85x) |       16.687    (3.51x) |
-| ./dragon_recon/dragon_vrip_res4.ply         |        2.277    (1.00x) |       33.693   (14.80x) |       16.200    (7.12x) |        4.114    (1.81x) |        3.718    (1.63x) |
-| ./drill/reconstruction/drill_shaft_vrip.ply |        1.007    (1.00x) |       15.923   (15.81x) |        5.913    (5.87x) |        1.689    (1.68x) |        1.453    (1.44x) |
-| ./drill/reconstruction/drill_shaft_zip.ply  |        0.184    (1.00x) |        4.677   (25.39x) |        2.359   (12.80x) |        0.644    (3.49x) |        0.570    (3.09x) |
-| ./happy_recon/happy_vrip.ply                |      118.323    (1.00x) |     3422.517   (28.93x) |     1679.352   (14.19x) |      434.323    (3.67x) |      398.817    (3.37x) |
-| ./happy_recon/happy_vrip_res2.ply           |       30.635    (1.00x) |      910.349   (29.72x) |      453.642   (14.81x) |      116.577    (3.81x) |      106.254    (3.47x) |
-| ./happy_recon/happy_vrip_res3.ply           |        7.912    (1.00x) |      204.425   (25.84x) |      101.594   (12.84x) |       26.163    (3.31x) |       23.697    (3.00x) |
-| ./happy_recon/happy_vrip_res4.ply           |        1.688    (1.00x) |       45.820   (27.15x) |       23.169   (13.73x) |        5.918    (3.51x) |        5.154    (3.05x) |
-| ./lucy/lucy.ply                             |      841.072    (1.00x) |     6840.205    (8.13x) |     3626.989    (4.31x) |     3583.870    (4.26x) |     1091.652    (1.30x) |
-| ./xyzrgb/xyzrgb_dragon.ply                  |      155.552    (1.00x) |     1703.085   (10.95x) |      811.903    (5.22x) |      845.528    (5.44x) |      194.225    (1.25x) |
-| ./xyzrgb/xyzrgb_manuscript.ply              |       96.159    (1.00x) |     1123.574   (11.68x) |      612.486    (6.37x) |      547.991    (5.70x) |      115.421    (1.20x) |
-| ./xyzrgb/xyzrgb_statuette.ply               |      269.888    (1.00x) |     2243.999    (8.31x) |     1126.247    (4.17x) |     1225.303    (4.54x) |      269.574    (1.00x) |
-| Overall Total                               |     1667.859    (1.00x) |    20452.671   (12.26x) |    10387.680    (6.23x) |     7323.200    (4.39x) |     2670.208    (1.60x) |
+| ./armadillo/Armadillo.ply                   |        9.563    (1.00x) |       88.369    (9.24x) |       37.964    (3.97x) |       46.990    (4.91x) |       11.971    (1.25x) |
+| ./bunny/reconstruction/bun_zipper.ply       |        9.383    (1.00x) |      264.134   (28.15x) |      119.892   (12.78x) |       33.751    (3.60x) |       28.565    (3.04x) |
+| ./bunny/reconstruction/bun_zipper_res2.ply  |        2.390    (1.00x) |       61.257   (25.63x) |       34.573   (14.47x) |        7.472    (3.13x) |        6.436    (2.69x) |
+| ./bunny/reconstruction/bun_zipper_res3.ply  |        0.554    (1.00x) |       14.102   (25.44x) |        6.316   (11.39x) |        1.903    (3.43x) |        1.595    (2.88x) |
+| ./bunny/reconstruction/bun_zipper_res4.ply  |        0.149    (1.00x) |        3.378   (22.64x) |        1.533   (10.27x) |        0.540    (3.62x) |        0.390    (2.62x) |
+| ./dragon_recon/dragon_vrip.ply              |      104.493    (1.00x) |     2793.676   (26.74x) |     1370.686   (13.12x) |      348.032    (3.33x) |      325.056    (3.11x) |
+| ./dragon_recon/dragon_vrip_res2.ply         |       22.080    (1.00x) |      621.702   (28.16x) |      314.735   (14.25x) |       79.840    (3.62x) |       72.250    (3.27x) |
+| ./dragon_recon/dragon_vrip_res3.ply         |        5.203    (1.00x) |      151.455   (29.11x) |       73.250   (14.08x) |       18.401    (3.54x) |       18.198    (3.50x) |
+| ./dragon_recon/dragon_vrip_res4.ply         |        1.265    (1.00x) |       33.153   (26.21x) |       16.850   (13.32x) |        4.142    (3.27x) |        3.918    (3.10x) |
+| ./drill/reconstruction/drill_shaft_vrip.ply |        0.565    (1.00x) |       13.298   (23.55x) |        5.997   (10.62x) |        1.669    (2.95x) |        1.770    (3.13x) |
+| ./drill/reconstruction/drill_shaft_zip.ply  |        0.279    (1.00x) |        4.976   (17.85x) |        2.346    (8.41x) |        0.640    (2.30x) |        0.605    (2.17x) |
+| ./happy_recon/happy_vrip.ply                |      132.957    (1.00x) |     3539.755   (26.62x) |     1724.545   (12.97x) |      430.997    (3.24x) |      413.895    (3.11x) |
+| ./happy_recon/happy_vrip_res2.ply           |       33.772    (1.00x) |      929.765   (27.53x) |      457.159   (13.54x) |      115.333    (3.42x) |      107.640    (3.19x) |
+| ./happy_recon/happy_vrip_res3.ply           |        7.931    (1.00x) |      208.067   (26.24x) |      103.341   (13.03x) |       26.010    (3.28x) |       23.529    (2.97x) |
+| ./happy_recon/happy_vrip_res4.ply           |        1.903    (1.00x) |       44.862   (23.57x) |       22.750   (11.95x) |        5.961    (3.13x) |        5.277    (2.77x) |
+| ./lucy/lucy.ply                             |      946.609    (1.00x) |     6948.228    (7.34x) |     2660.806    (2.81x) |     3618.619    (3.82x) |     1133.325    (1.20x) |
+| ./xyzrgb/xyzrgb_dragon.ply                  |      195.658    (1.00x) |     1713.632    (8.76x) |      650.285    (3.32x) |      853.737    (4.36x) |      241.996    (1.24x) |
+| ./xyzrgb/xyzrgb_manuscript.ply              |      120.698    (1.00x) |     1094.383    (9.07x) |      482.883    (4.00x) |      591.896    (4.90x) |      137.971    (1.14x) |
+| ./xyzrgb/xyzrgb_statuette.ply               |      278.514    (1.00x) |     2396.475    (8.60x) |      891.485    (3.20x) |     1228.987    (4.41x) |      401.332    (1.44x) |
+| Overall Total                               |     1873.967    (1.00x) |    20924.666   (11.17x) |     8977.394    (4.79x) |     7414.921    (3.96x) |     2935.719    (1.57x) |
